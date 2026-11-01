@@ -223,16 +223,17 @@ class RunService:
     def check_connection(self) -> bool:
         if self._busy():
             return False
+        with self._lock:
+            previous_status = self._status
+            self._status = "checking"
+            self._current_task = ""
+        # A connection check must not touch the daily run record: it is what
+        # "继续未完成" depends on, and wiping it silently disabled resume.
         self._cancel.clear()
-        self._status = "checking"
-        self._current_task = ""
-        self._tasks = []
-        self._summary = {}
-        self._started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._finished_at = ""
         self._reset_logs()
         self._thread = threading.Thread(
             target=self._check_connection,
+            args=(previous_status,),
             name="maayuan-lite-check",
             daemon=True,
         )
@@ -530,27 +531,29 @@ class RunService:
         except Exception as error:
             self._log(f"错误截图保存失败：{error}", "warn")
 
-    def _check_connection(self) -> None:
+    def _check_connection(self, previous_status: str = "idle") -> None:
         session = self._make_session()
         with self._lock:
             self._session = session
-            self._status = "checking"
         try:
             self._log("正在连接模拟器并启动 Agent……")
             session.start()
             session.capture_png(self._last_screenshot)
-            self._log("连接成功，截图已保存。")
-            self._status = "idle"
-            self._summary = {"connection": "ok", "screenshot": str(self._last_screenshot)}
+            self._log("连接成功，截图已保存：runtime/last-screen.png")
+            restored = previous_status
+            if restored in {"checking", "starting", "running"}:
+                restored = "idle"
+            with self._lock:
+                self._status = restored
         except Exception as error:
             self._log(f"连接检查失败：{error}", "error")
-            self._status = "error"
-            self._summary = {"connection": "failed", "error": str(error)}
+            with self._lock:
+                self._status = "error"
         finally:
             session.stop()
             with self._lock:
                 self._session = None
-                self._finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self._current_task = ""
 
     def _run_daily(
         self, training: str, include_dungeon: bool, resume: bool = False
@@ -740,10 +743,12 @@ class RunService:
                     aborted = True
                     self._persist()
                     break
-                    if self._cancel.is_set():
-                        cancelled = True
-                        break
                 self._persist()
+
+            if self._cancel.is_set() and not aborted:
+                # Stop was requested while the last task was still running; the
+                # loop has no next iteration to notice it.
+                cancelled = True
 
             if aborted:
                 succeeded = sum(

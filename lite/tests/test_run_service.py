@@ -67,6 +67,9 @@ class FakeSession:
     def probe(self, checks, timeout_ms: int = 1500) -> bool:
         return FakeSession.probe_ok
 
+    def capture_png(self, output):
+        return output
+
     def run_task(
         self,
         entry,
@@ -387,6 +390,46 @@ class RunServiceTest(unittest.TestCase):
 
         self.assertEqual(FakeSession.instances[-1].calls, [watch])
         self.assertEqual(restarted.snapshot()["summary"], {"succeeded": 8, "failed": 0})
+
+    def test_connection_check_keeps_daily_record(self):
+        """A connection check must not wipe the record "继续未完成" relies on."""
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            FakeSession.fail_entries = {self.entries["🔮 观星"]}
+            self.run_daily(service, training="修为", include_dungeon=False)
+
+            before = service.snapshot()
+            self.assertTrue(before["canResume"])
+            statuses = [task["status"] for task in before["tasks"]]
+            summary = dict(before["summary"])
+
+            self.assertTrue(service.check_connection())
+            service._thread.join(30)
+            after = service.snapshot()
+
+        self.assertEqual([task["status"] for task in after["tasks"]], statuses)
+        self.assertEqual(after["summary"], summary)
+        self.assertTrue(after["canResume"])
+        self.assertEqual(after["status"], before["status"])
+
+    def test_stop_during_last_task_marks_run_cancelled(self):
+        """Stop pressed while the final task runs must not report 完成."""
+        service = RunService(self.root, self.config)
+        last_entry = self.entries["🔶 日常收尾"]
+
+        class CancelOnLast(FakeSession):
+            def run_task(self, entry, **kwargs):
+                result = super().run_task(entry, **kwargs)
+                if entry == last_entry:
+                    service._cancel.set()
+                return result
+
+        with mock.patch("lite.run_service.LiteSession", CancelOnLast):
+            self.run_daily(service, training="修为", include_dungeon=False)
+
+        state = service.snapshot()
+        self.assertEqual(state["status"], "cancelled")
+        self.assertEqual(state["tasks"][-1]["status"], "succeeded")
 
 
 if __name__ == "__main__":
