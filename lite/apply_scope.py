@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,17 @@ DEFAULT_SOURCE = ROOT / "assets" / "interface.json"
 DEFAULT_OUTPUT = ROOT / "build" / "generated" / "interface.json"
 REPORT_OUTPUT = ROOT / "build" / "generated" / "scope-report.json"
 DEFAULT_OVERRIDES = ROOT / "lite" / "pipeline-overrides.json"
+DEFAULT_CONFIG = ROOT / "lite" / "runtime-config.json"
+
+
+def resolve_source(config_path: Path = DEFAULT_CONFIG) -> Path:
+    """界面定义默认取项目内副本，可由配置指向上游安装以跟随更新。"""
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return DEFAULT_SOURCE
+    override = str(config.get("interface_source") or "").strip()
+    return Path(override) if override else DEFAULT_SOURCE
 
 
 def merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
@@ -118,14 +130,23 @@ def apply_scope(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scope", type=Path, default=DEFAULT_SCOPE)
-    parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=None,
+        help="上游 interface.json；缺省读取 runtime-config.json 的 interface_source",
+    )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--report", type=Path, default=REPORT_OUTPUT)
     parser.add_argument("--overrides", type=Path, default=DEFAULT_OVERRIDES)
     args = parser.parse_args()
 
     scope = load_json(args.scope)
-    interface = load_json(args.source)
+    source = args.source or resolve_source()
+    if not source.is_file():
+        print(f"上游 interface.json 不存在：{source}", file=sys.stderr)
+        return 1
+    interface = load_json(source)
     overrides = load_json(args.overrides) if args.overrides.exists() else {}
     lite_interface, report = apply_scope(interface, scope, overrides)
 
@@ -140,7 +161,7 @@ def main() -> int:
 
     print(
         f"Generated {args.output} with {report['kept_task_count']} tasks; "
-        f"excluded {report['excluded_task_count']}."
+        f"excluded {report['excluded_task_count']} (source: {source})."
     )
     return 0
 

@@ -428,13 +428,29 @@ class RunService:
                 self._current_task = ""
                 self._finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    def _asset_root(self, key: str, fallback: str) -> Path:
+        """Resolve a resource/agent root.
+
+        ``resource_root`` / ``agent_root`` in runtime-config.json may point at
+        the upstream install so that its updates reach Lite without copying
+        the whole tree again. Empty means "use the copy inside this project".
+        """
+        override = str(self.config.get(key) or "").strip()
+        if override:
+            return Path(override)
+        return self.project_root / fallback
+
     def _make_session(self) -> LiteSession:
         return LiteSession(
             project_root=self.project_root,
             maa_root=Path(self.config["runtime_root"]),
             adb_path=Path(self.config["adb_path"]),
             serial=self.config.get("adb_serial", "emulator-5554"),
-            resource_path=self.project_root / self.config.get("resource_path", "assets/resource/base"),
+            resource_path=self._asset_root(
+                "resource_root",
+                self.config.get("resource_path", "assets/resource/base"),
+            ),
+            agent_root=self._asset_root("agent_root", "agent"),
         )
 
     def _guard_stop(self) -> bool:

@@ -3,6 +3,9 @@
   "adb_path": "D:/Apps Game/LDPlayer14/adb.exe",
   "adb_serial": "emulator-5554",
   "resource_path": "assets/resource/base",
+  "resource_root": "",
+  "agent_root": "",
+  "interface_source": "",
   "host": "127.0.0.1",
   "port": 8765,
   "automation": {

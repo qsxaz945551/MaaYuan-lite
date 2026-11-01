@@ -42,6 +42,40 @@ MaaYuan Lite 的代码分成两类：**自研**（本仓库维护）和**上游*
 - 运行时根目录（本机）：`D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6`（见 `lite/runtime-config.json`）
 - 本仓库的 `assets/`、`agent/` 即从该版本复制而来
 
+## 资源更新（游戏更新时最重要的一节）
+
+Lite 默认用的是**项目内副本**，上游更新不会自动同步过来。`lite/runtime-config.json` 有三个开关决定资源从哪读：
+
+| 字段 | 为空（默认） | 填绝对路径 |
+|---|---|---|
+| `resource_root` | 用 `assets/resource/base` | 用上游的 `resource/base` |
+| `agent_root` | 用项目内 `agent/` | 用上游的 `agent/` |
+| `interface_source` | 用 `assets/interface.json` | 用上游根目录的 `interface.json` |
+
+**跟随上游（推荐，本机现状）**：把三个字段都指向 `runtime_root` 下对应目录，例如
+
+```json
+"resource_root": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/resource/base",
+"agent_root": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/agent",
+"interface_source": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/interface.json"
+```
+
+这样上游（MFAUpdater）一更新，Lite 下次启动就生效；`start-lite.bat` 每次都会重跑 `apply_scope.py`，裁剪结果随之刷新。
+
+**自带副本（做独立包时）**：三个字段留空，把 `assets/` 与 `agent/` 随包带出。
+
+### 更新后的自检
+
+```bash
+python devtools/check_upstream.py          # 概览
+python devtools/check_upstream.py --verbose  # 列出差异文件名
+```
+
+它比对三件事：资源/Agent 逐文件差异、`daily-profile` 里的任务名是否还存在、
+`pipeline_fixes` 与 `round_progress` 依赖的节点名是否还存在。有漂移退出码为 1。
+
+**游戏大版本更新后建议顺序**：跑一次自检 → 有任务名/节点名失效就先改配置或补丁 → 再跑日常。
+
 ## 恢复步骤（换机器 / 重装）
 
 1. 取上游 `MaaYuan-win-x86_64-v2.1.1-beta.6` 完整包

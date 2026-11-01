@@ -49,6 +49,7 @@ class LiteSession:
         serial: str = "emulator-5554",
         resource_path: Optional[Path] = None,
         python_executable: Optional[Path] = None,
+        agent_root: Optional[Path] = None,
     ) -> None:
         self.project_root = project_root.resolve()
         self.maa_root = maa_root.resolve()
@@ -57,6 +58,13 @@ class LiteSession:
         self.resource_path = (
             resource_path or self.project_root / "assets" / "resource" / "base"
         ).resolve()
+        # Agent scripts may live in the upstream install so that resource
+        # updates reach Lite without copying them again.
+        self.agent_root = (
+            Path(agent_root).resolve()
+            if agent_root
+            else self.project_root / "agent"
+        )
         self.python_executable = Path(python_executable or sys.executable)
 
         self._controller: Any = None
@@ -248,10 +256,10 @@ class LiteSession:
             [
                 str(self.python_executable),
                 "-u",
-                str(self.project_root / "agent" / "main.py"),
+                str(self.agent_root / "main.py"),
                 identifier,
             ],
-            cwd=self.project_root,
+            cwd=str(self.agent_root),
             env=env,
             stdout=self._agent_stdout,
             stderr=self._agent_stderr,

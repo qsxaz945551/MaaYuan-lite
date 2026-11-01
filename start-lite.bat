@@ -12,8 +12,12 @@ if not exist "%PY%" (
   exit /b 1
 )
 
-if not exist "%CD%\build\generated\interface.json" (
-  "%PY%" lite\apply_scope.py
+rem 每次启动都重建 interface.json：上游资源更新后不会再用到旧的裁剪结果
+"%PY%" lite\apply_scope.py
+if errorlevel 1 (
+  echo [ERROR] apply_scope failed. Check lite\runtime-config.json.
+  pause
+  exit /b 1
 )
 
 "%PY%" app.py
