@@ -3,9 +3,9 @@
   "adb_path": "D:/Apps Game/LDPlayer14/adb.exe",
   "adb_serial": "emulator-5554",
   "resource_path": "assets/resource/base",
-  "resource_root": "",
-  "agent_root": "",
-  "interface_source": "",
+  "resource_root": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/resource/base",
+  "agent_root": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/agent",
+  "interface_source": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/interface.json",
   "host": "127.0.0.1",
   "port": 8765,
   "automation": {
