@@ -38,49 +38,74 @@ MaaYuan Lite 的代码分成两类：**自研**（本仓库维护）和**上游*
 
 ## 上游来源
 
-- 版本：`MaaYuan-win-x86_64-v2.1.1-beta.6`
-- 运行时根目录（本机）：`D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6`（见 `lite/runtime-config.json`）
-- 本仓库的 `assets/`、`agent/` 即从该版本复制而来
+- 仓库：`https://github.com/syoius/MaaYuan`，分支 `v5`（默认分支）
+- 当前同步版本：提交 `c119472`（2026-10-26），由 `devtools/sync_repo.py` 记录
+- 资源与 agent 由 `vendor/MaaYuan-src/` 提供；项目内的 `assets/`、`agent/` 是早期从
+  `MaaYuan-win-x86_64-v2.1.1-beta.6` 安装目录复制的副本，现在只作兜底
+- 运行时（Python / maa 包 / MaaAgentBinary）仍指向安装目录，见下一节
 
 ## 资源更新（游戏更新时最重要的一节）
 
-Lite 默认用的是**项目内副本**，上游更新不会自动同步过来。`lite/runtime-config.json` 有三个开关决定资源从哪读：
+**现在是直接从 GitHub 仓库同步，不再依赖原版安装。**
 
-| 字段 | 为空（默认） | 填绝对路径 |
-|---|---|---|
-| `resource_root` | 用 `assets/resource/base` | 用上游的 `resource/base` |
-| `agent_root` | 用项目内 `agent/` | 用上游的 `agent/` |
-| `interface_source` | 用 `assets/interface.json` | 用上游根目录的 `interface.json` |
+上游仓库 `github.com/syoius/MaaYuan`（分支 `v5`）里有 pipeline、图片、
+`interface.json` 和 `agent/`；OCR 模型放在子模块 `MaaXYZ/MaaCommonAssets`
+（344 MB，整克隆不划算），所以只按需下载当前版本需要的 7 个文件
+（`ppocr_v6/small` 主模型 + `ppocr_v5/zh_cn` 密探名模型 + `ppocr_v4/en_us` 英文）。
 
-**跟随上游（推荐，本机现状）**：把三个字段都指向 `runtime_root` 下对应目录，例如
-
-```json
-"resource_root": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/resource/base",
-"agent_root": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/agent",
-"interface_source": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/interface.json"
+```bash
+python devtools/sync_repo.py            # 首次：克隆 + 下载模型（约 100 MB）
+python devtools/sync_repo.py --update   # 之后：拉取最新提交，模型按大小增量更新
+python devtools/sync_repo.py --check    # 只看当前版本，不下载
 ```
 
-这样上游（MFAUpdater）一更新，Lite 下次启动就生效；`start-lite.bat` 每次都会重跑 `apply_scope.py`，裁剪结果随之刷新。
+克隆落在 `vendor/MaaYuan-src/`（已被 `.gitignore` 排除，约 181 MB）。
 
-**自带副本（做独立包时）**：三个字段留空，把 `assets/` 与 `agent/` 随包带出。
+`lite/runtime-config.json` 的三个字段指向它（**相对路径按项目根解析**）：
+
+```json
+"resource_root": "vendor/MaaYuan-src/assets/resource/base",
+"agent_root": "vendor/MaaYuan-src/agent",
+"interface_source": "vendor/MaaYuan-src/assets/interface.json"
+```
+
+三个字段留空 = 回退到项目内的 `assets/`、`agent/` 副本（这份副本仍在，作为兜底）。
+
+`start-lite.bat` 每次启动都会重跑 `apply_scope.py`，裁剪结果随仓库版本刷新。
 
 ### 更新后的自检
 
 ```bash
-python devtools/check_upstream.py          # 概览
-python devtools/check_upstream.py --verbose  # 列出差异文件名
+python devtools/check_upstream.py
 ```
 
-它比对三件事：资源/Agent 逐文件差异、`daily-profile` 里的任务名是否还存在、
-`pipeline_fixes` 与 `round_progress` 依赖的节点名是否还存在。有漂移退出码为 1。
+校验三件事：资源路径是否完整（含 OCR 模型）、`daily-profile` 里的任务名是否还存在、
+`pipeline_fixes` 与 `round_progress` 依赖的节点名是否还存在。有问题退出码为 1。
 
-**游戏大版本更新后建议顺序**：跑一次自检 → 有任务名/节点名失效就先改配置或补丁 → 再跑日常。
+**游戏大版本更新后的顺序**：`sync_repo.py --update` → `check_upstream.py` →
+任务名/节点名失效就先改 `daily-profile.json` / `pipeline_fixes.py` / `round_progress.py`
+→ 再跑日常。
+
+## 仍然依赖原版安装的部分
+
+资源已经不依赖了，但**运行时还依赖**，卸载前需要补齐：
+
+| 依赖 | 现状 | 卸载后怎么办 |
+|---|---|---|
+| Python 解释器 | 用 `D:/Apps Game/MaaYuan-.../python/python.exe` | 自带 embeddable Python，或装系统 Python |
+| `maa` 包（含原生库 66 MB） | 用原版 site-packages | `pip install maa`（自带 `bin/*.dll`） |
+| `MaaAgentBinary`（13 MB） | 用原版 `libs/MaaAgentBinary` | `pip install MaaAgentBinary`（独立包） |
+| MaaFramework 原生库 | `runtime_root/runtimes/win-x64/native` | 已含在 `maa` 包的 `bin/` 里 |
+
+也就是说「卸载原版」还差一步：把这四样搬进 Lite 自己的目录。做完之后
+`runtime_root` 就可以不再指向 `D:/Apps Game/...`。
 
 ## 恢复步骤（换机器 / 重装）
 
-1. 取上游 `MaaYuan-win-x86_64-v2.1.1-beta.6` 完整包
-2. 复制其中的 `assets/`、`agent/` 到本目录（覆盖）
-3. 复制 `assets/interface.json`（通常在 `assets/` 根下）
-4. 修改 `lite/runtime-config.json` 的 `runtime_root` / `adb_path`
+1. `git clone` 本仓库（`assets/resource` 与 `vendor/` 不入库，需重新获取）
+2. `python devtools/sync_repo.py` 拉取上游资源与模型
+3. 修改 `lite/runtime-config.json` 的 `runtime_root` / `adb_path`（指向 Python 与 adb）
+4. 运行 `python lite/apply_scope.py` 生成 `build/generated/interface.json`
+5. 运行 `python -m unittest discover -s lite/tests` 确认环境正常
 5. 运行 `python lite/apply_scope.py` 生成 `build/generated/interface.json`
 6. 运行 `python -m unittest discover -s lite/tests` 确认环境正常

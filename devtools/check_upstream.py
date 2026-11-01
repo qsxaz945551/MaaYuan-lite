@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -34,6 +35,14 @@ OPTIONS = ROOT / "lite" / "task-options.json"
 def load_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8-sig") as handle:
         return json.load(handle)
+
+
+def resolve(override: str, fallback: str) -> Path:
+    """配置里的相对路径按项目根解析，与 run_service 保持一致。"""
+    if not override:
+        return ROOT / fallback
+    path = Path(override)
+    return path if path.is_absolute() else ROOT / path
 
 
 def tree(root: Path) -> dict[str, int]:
@@ -159,37 +168,62 @@ def main() -> int:
     print(f"agent        : {agent_override or '项目内副本 agent/'}")
     print(f"interface    : {source_override or '项目内副本 assets/interface.json'}")
 
-    resource_root = (
-        Path(resource_override)
-        if resource_override
-        else ROOT / "assets" / "resource" / "base"
-    )
-    agent_root = Path(agent_override) if agent_override else ROOT / "agent"
-    source = (
-        Path(source_override) if source_override else ROOT / "assets" / "interface.json"
-    )
+    resource_root = resolve(resource_override, "assets/resource/base")
+    agent_root = resolve(agent_override, "agent")
+    source = resolve(source_override, "assets/interface.json")
+    for label, path in (("resource", resource_root), ("agent", agent_root), ("source", source)):
+        if not path.exists():
+            print(f"\n[错误] {label} 路径不存在：{path}")
+            return 1
 
+    # 指向具体目录时它本身就是源（git 克隆或安装目录），与安装目录比对没有意义。
+    independent = bool(resource_override or agent_override or source_override)
     drift = 0
-    drift += compare(
-        "资源 pipeline", resource_root, runtime_root / "resource" / "base", args.verbose
-    )
-    drift += compare("Agent 脚本", agent_root, runtime_root / "agent", args.verbose)
+
+    if independent:
+        print("\n== 资源来源 ==")
+        print("   直接使用上面的路径，跳过与安装目录的逐文件比对")
+        git_dir = resource_root
+        while git_dir != git_dir.parent and not (git_dir / ".git").exists():
+            git_dir = git_dir.parent
+        if (git_dir / ".git").exists():
+            head = subprocess.run(
+                ["git", "-C", str(git_dir), "log", "-1", "--format=%h %cd", "--date=short"],
+                capture_output=True, text=True, encoding="utf-8", errors="ignore",
+            ).stdout.strip()
+            if head:
+                print(f"   git 版本：{head}")
+        for name in ("det.onnx", "rec.onnx", "keys.txt"):
+            if not (resource_root / "model" / "ocr" / name).is_file():
+                print(f"   [缺失] OCR 模型 {name}")
+                drift += 1
+    else:
+        drift += compare(
+            "资源 pipeline", resource_root, runtime_root / "resource" / "base", args.verbose
+        )
+
+    if not agent_override:
+        drift += compare("Agent 脚本", agent_root, runtime_root / "agent", args.verbose)
+    else:
+        print("\n== Agent 脚本 ==")
+        print(f"   直接使用 {agent_root}")
 
     print("\n== interface.json ==")
     if not source.is_file():
         print(f"   [错误] 找不到 {source}")
         return 1
     interface = load_json(source)
-    upstream_interface = runtime_root / "interface.json"
-    if upstream_interface.is_file() and source.resolve() != upstream_interface.resolve():
-        same = source.stat().st_size == upstream_interface.stat().st_size
-        print(
-            f"   本地副本 {source.stat().st_size} 字节 / 上游 {upstream_interface.stat().st_size} 字节"
-            f" → {'一致' if same else '不同'}"
-        )
-        drift += 0 if same else 1
+    if source_override:
+        print(f"   直接使用 {source}（{source.stat().st_size} 字节）")
     else:
-        print("   直接使用上游文件")
+        upstream_interface = runtime_root / "interface.json"
+        if upstream_interface.is_file():
+            same = source.stat().st_size == upstream_interface.stat().st_size
+            print(
+                f"   本地副本 {source.stat().st_size} 字节 / 上游 "
+                f"{upstream_interface.stat().st_size} 字节 → {'一致' if same else '不同'}"
+            )
+            drift += 0 if same else 1
 
     name_problems = check_task_names(interface)
     print("\n== 任务名引用 ==")
@@ -214,9 +248,11 @@ def main() -> int:
     problems = len(name_problems) + len(node_problems)
     if drift or problems:
         print(f"结论：需要处理（漂移 {drift} 处，引用问题 {problems} 处）")
+        if problems:
+            print("提示：任务名或节点名失效时，先改 lite/daily-profile.json、")
+            print("      lite/pipeline_fixes.py、lite/round_progress.py 或 lite/scope.json。")
         if drift:
-            print("提示：把 lite/runtime-config.json 的 resource_root / agent_root /")
-            print("      interface_source 指向上游安装，即可跟随更新而不再复制。")
+            print("提示：资源不一致时运行 python devtools/sync_repo.py --update 拉取最新仓库。")
         return 1
     print("结论：与上游一致")
     return 0

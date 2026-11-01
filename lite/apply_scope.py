@@ -29,7 +29,10 @@ def resolve_source(config_path: Path = DEFAULT_CONFIG) -> Path:
     except (OSError, ValueError):
         return DEFAULT_SOURCE
     override = str(config.get("interface_source") or "").strip()
-    return Path(override) if override else DEFAULT_SOURCE
+    if not override:
+        return DEFAULT_SOURCE
+    path = Path(override)
+    return path if path.is_absolute() else ROOT / path
 
 
 def merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:

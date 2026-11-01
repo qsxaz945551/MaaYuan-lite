@@ -437,7 +437,8 @@ class RunService:
         """
         override = str(self.config.get(key) or "").strip()
         if override:
-            return Path(override)
+            path = Path(override)
+            return path if path.is_absolute() else self.project_root / path
         return self.project_root / fallback
 
     def _make_session(self) -> LiteSession:
