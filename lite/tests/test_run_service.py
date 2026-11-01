@@ -1,0 +1,393 @@
+from __future__ import annotations
+
+import json
+import shutil
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from lite.run_service import RunService
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+class FakeSession:
+    probe_ok = True
+    device_ok = True
+    agent_ok = True
+    agent_calls = 0
+    agent_die_at_call = 0
+    restart_count = 0
+    fail_entries: set[str] = set()
+    timeout_entries: set[str] = set()
+    node_events: dict[str, list[str]] = {}
+    node_start_events: dict[str, list[str]] = {}
+    instances: list["FakeSession"] = []
+
+    def __init__(self, **kwargs):
+        self.calls: list[str] = []
+        self.stopped = False
+        self._node_callback = None
+        self._node_start_callback = None
+        FakeSession.instances.append(self)
+
+    def start(self, connect_timeout: float = 30.0) -> None:
+        return None
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def set_node_callback(self, callback) -> None:
+        self._node_callback = callback
+
+    def set_node_start_callback(self, callback) -> None:
+        self._node_start_callback = callback
+
+    def device_ready(self) -> bool:
+        return FakeSession.device_ok
+
+    def reconnect(self, attempts: int = 3, delay: float = 3.0) -> bool:
+        return FakeSession.device_ok
+
+    def agent_alive(self) -> bool:
+        FakeSession.agent_calls += 1
+        if (
+            FakeSession.agent_die_at_call
+            and FakeSession.agent_calls >= FakeSession.agent_die_at_call
+        ):
+            return False
+        return FakeSession.agent_ok
+
+    def restart_agent(self, connect_timeout: float = 30.0) -> bool:
+        FakeSession.restart_count += 1
+        return FakeSession.agent_ok
+
+    def probe(self, checks, timeout_ms: int = 1500) -> bool:
+        return FakeSession.probe_ok
+
+    def run_task(
+        self,
+        entry,
+        pipeline_override=None,
+        timeout_sec=900,
+        retries=0,
+        should_stop=None,
+        agent_check=None,
+    ):
+        self.calls.append(entry)
+        for node in FakeSession.node_events.get(entry, []):
+            if self._node_callback is not None:
+                self._node_callback(node)
+        for node in FakeSession.node_start_events.get(entry, []):
+            if self._node_start_callback is not None:
+                self._node_start_callback(node)
+        if should_stop is not None and should_stop():
+            return {
+                "entry": entry,
+                "success": False,
+                "timed_out": False,
+                "cancelled": True,
+                "agent_died": False,
+                "attempt": 1,
+                "attempts": 1,
+            }
+        if agent_check is not None and not agent_check():
+            return {
+                "entry": entry,
+                "success": False,
+                "timed_out": False,
+                "cancelled": False,
+                "agent_died": True,
+                "attempt": 1,
+                "attempts": 1,
+            }
+        timed_out = entry in FakeSession.timeout_entries
+        succeeded = entry not in FakeSession.fail_entries and not timed_out
+        return {
+            "entry": entry,
+            "success": succeeded,
+            "timed_out": timed_out,
+            "cancelled": False,
+            "agent_died": False,
+            "attempt": 1,
+            "attempts": 1,
+        }
+
+
+def entry_map() -> dict[str, str]:
+    interface = json.loads(
+        (ROOT / "build" / "generated" / "interface.json").read_text(encoding="utf-8")
+    )
+    return {task["name"]: task["entry"] for task in interface["task"]}
+
+
+class RunServiceTest(unittest.TestCase):
+    def setUp(self):
+        FakeSession.probe_ok = True
+        FakeSession.device_ok = True
+        FakeSession.agent_ok = True
+        FakeSession.agent_calls = 0
+        FakeSession.agent_die_at_call = 0
+        FakeSession.restart_count = 0
+        FakeSession.fail_entries = set()
+        FakeSession.timeout_entries = set()
+        FakeSession.node_events = {}
+        FakeSession.node_start_events = {}
+        FakeSession.instances = []
+        self.entries = entry_map()
+
+        # Isolated project root so runtime/last-run.json never touches the real one.
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        (self.root / "build" / "generated").mkdir(parents=True)
+        shutil.copy(
+            ROOT / "build" / "generated" / "interface.json",
+            self.root / "build" / "generated" / "interface.json",
+        )
+        self.config = {
+            "runtime_root": str(ROOT),
+            "adb_path": str(ROOT / "adb.exe"),
+            "adb_serial": "emulator-5554",
+            "resource_path": "assets/resource/base",
+        }
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def run_daily(self, service: RunService, **kwargs) -> None:
+        self.assertTrue(service.start_daily(**kwargs))
+        service._thread.join(30)
+        self.assertFalse(service._thread.is_alive())
+
+    def test_snapshot_returns_incremental_logs(self):
+        service = RunService(self.root, self.config)
+        service._reset_logs()
+        service._log("a")
+        service._log("b")
+
+        full = service.snapshot(0)
+        self.assertEqual([line["message"] for line in full["logs"]], ["a", "b"])
+        self.assertEqual(full["logSeq"], 2)
+
+        partial = service.snapshot(1)
+        self.assertEqual([line["message"] for line in partial["logs"]], ["b"])
+
+        service._log("c")
+        self.assertEqual(
+            [line["message"] for line in service.snapshot(2)["logs"]], ["c"]
+        )
+
+        # Client counter ahead of the server (process restart) -> full resend.
+        ahead = service.snapshot(99)
+        self.assertEqual(len(ahead["logs"]), 3)
+
+        # Starting a new run keeps the previous lines and appends a separator.
+        run_before = service.snapshot(0)["runId"]
+        service._reset_logs()
+        reset = service.snapshot(0)
+        self.assertEqual(reset["runId"], run_before)
+        self.assertEqual(reset["logSeq"], 4)
+        self.assertEqual(
+            [line["message"] for line in reset["logs"]],
+            ["a", "b", "c", "—— 新的一次运行 ——"],
+        )
+
+    def test_log_cursor_skips_existing_history(self):
+        service = RunService(self.root, self.config)
+        service._reset_logs()
+        service._log("a")
+        service._log("b")
+        cursor = service.log_cursor()
+        self.assertEqual(service.snapshot(cursor)["logs"], [])
+        service._log("c")
+        self.assertEqual(
+            [line["message"] for line in service.snapshot(cursor)["logs"]], ["c"]
+        )
+
+    def test_node_loop_guard_stops_task(self):
+        service = RunService(self.root, self.config)
+        name = "🗡 白鹄扫荡"
+        entry = self.entries[name]
+        FakeSession.node_start_events = {entry: ["卡住的节点"] * 130}
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.assertTrue(service.run_single(name))
+            service._thread.join(30)
+
+        state = service.snapshot()
+        self.assertEqual(state["single"]["results"][0]["status"], "failed")
+        messages = [line["message"] for line in state["logs"]]
+        self.assertTrue(any("疑似死循环" in m for m in messages))
+
+    def test_agent_death_restarts_and_continues(self):
+        service = RunService(self.root, self.config)
+        FakeSession.agent_die_at_call = 2
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.assertTrue(service.run_single("🔮 观星"))
+            service._thread.join(30)
+
+        state = service.snapshot()
+        self.assertEqual(state["single"]["results"][0]["status"], "failed")
+        messages = [line["message"] for line in state["logs"]]
+        self.assertTrue(any("Agent 异常退出" in m for m in messages))
+        self.assertTrue(any("Agent 已重启" in m for m in messages))
+        self.assertEqual(FakeSession.restart_count, 1)
+
+    def test_adb_loss_stops_run(self):
+        service = RunService(self.root, self.config)
+        FakeSession.device_ok = False
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.assertTrue(service.run_single("🔮 观星"))
+            service._thread.join(30)
+
+        state = service.snapshot()
+        self.assertEqual(state["status"], "error")
+        messages = [line["message"] for line in state["logs"]]
+        self.assertTrue(any("重连失败" in m for m in messages))
+
+    def test_loop_task_logs_one_line_per_round(self):
+        service = RunService(self.root, self.config)
+        name = "🔄 6-24/7-15 刷到体力耗尽"
+        entry = self.entries[name]
+        FakeSession.node_events = {
+            entry: ["战斗结束", "无关节点", "战斗结束", "战斗结束"]
+        }
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.assertTrue(service.run_single(name))
+            service._thread.join(30)
+
+        messages = [line["message"] for line in service.snapshot(0)["logs"]]
+        rounds = [m for m in messages if m.startswith("第 ")]
+        self.assertEqual(
+            rounds,
+            ["第 1 轮完成（战斗）", "第 2 轮完成（战斗）", "第 3 轮完成（战斗）"],
+        )
+
+    def test_single_run_keeps_daily_progress(self):
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(service, training="修为", include_dungeon=False)
+            before = service.snapshot()
+            self.assertEqual(before["summary"], {"succeeded": 8, "failed": 0})
+
+            target = "🏰 邺城之战V3"
+            self.assertTrue(service.run_single(target))
+            service._thread.join(30)
+
+        state = service.snapshot()
+        self.assertIsNotNone(state["single"])
+        self.assertEqual(state["single"]["name"], target)
+        self.assertEqual(state["single"]["status"], "succeeded")
+        self.assertEqual([task["status"] for task in state["tasks"]], ["succeeded"] * 8)
+        self.assertFalse(state["canResume"])
+        self.assertEqual(FakeSession.instances[-1].calls, [self.entries[target]])
+
+    def test_sequence_runs_tasks_in_order(self):
+        service = RunService(self.root, self.config)
+        names = ["🏰 邺城之战V3", "🎲 爱乐之村"]
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.assertTrue(service.run_sequence(names))
+            service._thread.join(30)
+
+        state = service.snapshot()
+        self.assertEqual(state["single"]["total"], 2)
+        self.assertEqual(
+            [item["name"] for item in state["single"]["results"]], names
+        )
+        self.assertEqual(FakeSession.instances[-1].calls, [self.entries[n] for n in names])
+        self.assertEqual(state["status"], "completed")
+
+    def test_timeout_is_reported_separately(self):
+        watch = self.entries["🔮 观星"]
+        FakeSession.timeout_entries = {watch}
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(service, training="修为", include_dungeon=False)
+
+        state = service.snapshot()
+        statuses = {task["name"]: task["status"] for task in state["tasks"]}
+        self.assertEqual(statuses["🔮 观星"], "timed_out")
+        self.assertEqual(state["summary"]["failed"], 1)
+        self.assertTrue(state["canResume"])
+
+    def test_unknown_single_task_is_rejected(self):
+        service = RunService(self.root, self.config)
+        with self.assertRaises(ValueError):
+            service.run_single("不存在的任务")
+
+    def test_clean_run_has_nothing_to_resume(self):
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(service, training="修为", include_dungeon=False)
+
+        state = service.snapshot()
+        self.assertEqual(state["status"], "completed")
+        self.assertEqual(state["summary"], {"succeeded": 8, "failed": 0})
+        self.assertFalse(state["canResume"])
+
+        restarted = RunService(self.root, self.config)
+        restored = restarted.snapshot()
+        self.assertEqual(restored["status"], "completed")
+        self.assertFalse(restored["canResume"])
+
+    def test_probe_miss_skips_dungeon_without_failing(self):
+        FakeSession.probe_ok = False
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(service, training="修为", include_dungeon=True)
+
+        state = service.snapshot()
+        statuses = {task["name"]: task["status"] for task in state["tasks"]}
+        self.assertEqual(statuses["🗡 地宫助手"], "skipped")
+        self.assertEqual(state["status"], "completed")
+        self.assertEqual(state["summary"]["failed"], 0)
+        self.assertFalse(state["canResume"])
+        self.assertNotIn(self.entries["🗡 地宫助手"], FakeSession.instances[-1].calls)
+
+    def test_resume_reruns_only_unfinished_tasks(self):
+        watch = self.entries["🔮 观星"]
+        FakeSession.fail_entries = {watch}
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(service, training="修为", include_dungeon=False)
+            self.assertTrue(service.snapshot()["canResume"])
+
+            FakeSession.fail_entries = set()
+            self.run_daily(
+                service, training="修为", include_dungeon=False, resume=True
+            )
+
+        self.assertEqual(FakeSession.instances[-1].calls, [watch])
+        state = service.snapshot()
+        self.assertEqual(state["status"], "completed")
+        self.assertEqual(state["summary"], {"succeeded": 8, "failed": 0})
+
+    def test_unfinished_run_survives_restart(self):
+        watch = self.entries["🔮 观星"]
+        FakeSession.fail_entries = {watch}
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(service, training="修为", include_dungeon=False)
+
+        # Simulate closing and reopening the control panel.
+        restarted = RunService(self.root, self.config)
+        state = restarted.snapshot()
+        self.assertEqual(state["status"], "interrupted")
+        self.assertTrue(state["canResume"])
+        statuses = {task["name"]: task["status"] for task in state["tasks"]}
+        self.assertEqual(statuses["🔮 观星"], "failed")
+        self.assertEqual(statuses["🚀 启动游戏"], "succeeded")
+
+        FakeSession.fail_entries = set()
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(
+                restarted, training="修为", include_dungeon=False, resume=True
+            )
+
+        self.assertEqual(FakeSession.instances[-1].calls, [watch])
+        self.assertEqual(restarted.snapshot()["summary"], {"succeeded": 8, "failed": 0})
+
+
+if __name__ == "__main__":
+    unittest.main()

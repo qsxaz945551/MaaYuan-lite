@@ -1,0 +1,130 @@
+{
+  "schema_version": 2,
+  "source": {
+    "log_window": "2026-10-17..2026-10-30",
+    "task_starts": 161
+  },
+  "usage_counts": {
+    "🚀 启动游戏": 30,
+    "🔄 鸢报四合一": 17,
+    "💰 领月卡福利": 15,
+    "🏯 据点日常": 15,
+    "🔮 观星": 15,
+    "🗡 白鹄扫荡": 15,
+    "🔶 日常收尾": 15,
+    "🏰 邺城之战V3": 13,
+    "💎 修为历练": 12,
+    "🗡 地宫助手": 11,
+    "💲 铜钱历练": 3
+  },
+  "daily_order": [
+    {
+      "type": "task",
+      "name": "🚀 启动游戏"
+    },
+    {
+      "type": "task",
+      "name": "💰 领月卡福利"
+    },
+    {
+      "type": "task",
+      "name": "🏯 据点日常"
+    },
+    {
+      "type": "task",
+      "name": "🔮 观星"
+    },
+    {
+      "type": "choice",
+      "id": "training",
+      "label": "历练类型",
+      "default": "💎 修为历练",
+      "options": [
+        "💎 修为历练",
+        "💲 铜钱历练",
+        "⚔️ 经验历练"
+      ]
+    },
+    {
+      "type": "task",
+      "name": "🗡 白鹄扫荡"
+    },
+    {
+      "type": "optional_task",
+      "name": "🗡 地宫助手",
+      "group": "seasonal_daily",
+      "label": "地宫开放期",
+      "activity": {
+        "name": "地宫",
+        "mode": "manual_toggle",
+        "end_date": null,
+        "remind_before_days": 7
+      },
+      "default_enabled": false,
+      "on_unavailable": "skip",
+      "timeout_sec": 1500,
+      "retries": 0,
+      "probe": {
+        "label": "地宫入口",
+        "timeout_ms": 1000,
+        "checks": [
+          {
+            "type": "TemplateMatch",
+            "param": {
+              "template": ["mainmap/deepdungeon.png"],
+              "roi": [531, 44, 52, 68],
+              "threshold": [0.8]
+            }
+          },
+          {
+            "type": "TemplateMatch",
+            "param": {
+              "template": ["mainmap/digong.png"],
+              "roi": [335, 446, 183, 150]
+            }
+          },
+          {
+            "type": "OCR",
+            "param": {
+              "expected": ["地宫"],
+              "roi": [335, 446, 183, 150]
+            }
+          }
+        ]
+      },
+      "note": "限时活动日常，固定插在白鹄扫荡之后。默认关闭；开放期打开。执行前先做只读入口探测，探测不到地宫入口（活动未开放或不在主界面）则直接跳过，不等待超时，也不阻断日常收尾。"
+    },
+    {
+      "type": "task",
+      "name": "📜 鸢报四连 - 日常专用"
+    },
+    {
+      "type": "task",
+      "name": "🔶 日常收尾"
+    }
+  ],
+  "standalone_profiles": [
+    {
+      "name": "邺城活动",
+      "tasks": [
+        "🏰 邺城之战V3"
+      ],
+      "note": "通常单独启动，不并入日常一条链。"
+    }
+  ],
+  "hidden_in_library": [
+    "💎 修为历练",
+    "💲 铜钱历练",
+    "⚔️ 经验历练",
+    "🍚 每日进膳",
+    "🌺 自动爬兰台",
+    "🏴 朝歌之战V2",
+    "🗡 地宫助手"
+  ],
+  "pinned_in_library": [
+    "🔄 6-24/7-15 刷到体力耗尽",
+    "🔄 鸢报四合一",
+    "🏰 邺城之战V3"
+  ],
+  "status": "defaults_confirmed_except_activity_end_date"
+}

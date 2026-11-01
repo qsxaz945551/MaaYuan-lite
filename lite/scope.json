@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "project": "MaaYuan Lite",
+  "source": {
+    "repository": "https://github.com/syoius/MaaYuan",
+    "branch": "v5",
+    "resource_version": "v2.3.1-beta.3",
+    "snapshot_date": "2026-10-30"
+  },
+  "target": {
+    "os": "Windows 11 x64",
+    "emulator": "LDPlayer 14",
+    "game": "如鸢",
+    "language": "zh-CN"
+  },
+  "ui": {
+    "keep": [
+      "主页任务列表",
+      "任务设置",
+      "连接设置",
+      "运行日志",
+      "启动与停止"
+    ],
+    "remove": [
+      "自动战斗",
+      "录制作业"
+    ]
+  },
+  "tasks": {
+    "exclude": [
+      {
+        "name": "🚀 启动biubiu加速器",
+        "reason": "用户明确不使用"
+      },
+      {
+        "name": "🛍️ 据点商人购物",
+        "reason": "用户明确不使用"
+      },
+      {
+        "name": "🔨 心纸营建",
+        "reason": "用户明确不使用"
+      },
+      {
+        "name": "🔢 6-24/7-15 指定循环次数",
+        "reason": "用户明确不使用"
+      },
+      {
+        "name": "🏯 派遣四合一",
+        "reason": "用户明确不使用"
+      },
+      {
+        "name": "🏯 据点情报二合一",
+        "reason": "用户明确不使用"
+      },
+      {
+        "name": "✨ 自动抄作业V3",
+        "reason": "依赖已移除的自动战斗/作业模块",
+        "needs_confirmation": true
+      }
+    ],
+    "keep": "除 exclude 外的所有任务；最终任务默认勾选顺序在首次运行前确认"
+  },
+  "constraints": {
+    "ocr_model_quantization": "forbidden",
+    "modify_original_install": false,
+    "separate_project_directory": true,
+    "offline_runtime_dependencies": true,
+    "auto_close_after_tasks": false,
+    "preserve_upstream_license": true
+  },
+  "build": {
+    "platforms": [
+      "win-x64"
+    ],
+    "languages": [
+      "zh-CN"
+    ],
+    "include_docs_sites": false,
+    "include_android": false,
+    "include_other_platform_runtimes": false
+  }
+}
