@@ -428,12 +428,6 @@ class RunService:
         aborted = False
         try:
             session.start()
-            if self._warn_if_landscape(session):
-                with self._lock:
-                    self._status = "error"
-                    self._single["status"] = "failed"
-                self._log("已中止：改正模拟器分辨率后重新开始。", "error")
-                return
             for index, job in enumerate(jobs):
                 if self._cancel.is_set():
                     break
@@ -765,6 +759,9 @@ class RunService:
             self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
         else:
             self._log(f"任务失败：{name}（{duration}s），继续后续任务。", "error")
+            # A landscape screen explains a whole run of failures; say it here
+            # rather than leaving the user with "recognition failed" x8.
+            self._warn_if_landscape(session)
             self._capture_failure(session, name)
             self._recover_after_failure(session, name)
 
@@ -805,7 +802,6 @@ class RunService:
             session.start()
             session.capture_png(self._last_screenshot)
             self._log("连接成功，截图已保存：runtime/last-screen.png")
-            self._warn_if_landscape()
             restored = previous_status
             if restored in {"checking", "starting", "running"}:
                 restored = "idle"
@@ -877,12 +873,6 @@ class RunService:
             self._log("正在连接模拟器并启动 Agent……")
             session.start()
             self._log("连接成功，开始执行日常链。")
-            if self._warn_if_landscape(session):
-                with self._lock:
-                    self._status = "error"
-                    self._summary = {"error": "屏幕方向不对（横屏）"}
-                self._log("已中止：改正模拟器分辨率后重新开始日常。", "error")
-                return
 
             for index, item in enumerate(plan["tasks"]):
                 if self._cancel.is_set():
