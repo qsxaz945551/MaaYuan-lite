@@ -124,6 +124,27 @@ def _apply_staged_resources(config: dict) -> None:
     )
 
 
+def _ensure_interface(config: dict) -> None:
+    """Rebuild the scoped interface when the source is newer than the output.
+
+    The WPF shell starts app.py directly, so this cannot live in a .bat file:
+    an update or a manual resource refresh must not leave a stale task list.
+    """
+    generated = ROOT / "build" / "generated" / "interface.json"
+    source_value = str(config.get("interface_source") or "").strip()
+    source = Path(source_value) if source_value else ROOT / "assets" / "interface.json"
+    try:
+        if generated.is_file() and (
+            not source.is_file() or generated.stat().st_mtime >= source.stat().st_mtime
+        ):
+            return
+    except OSError:
+        pass
+    ok, detail = _rebuild_interface()
+    if not ok:
+        print(f"interface 重建失败：{detail}", file=sys.stderr)
+
+
 def _rebuild_interface() -> tuple[bool, str]:
     """Regenerate build/generated/interface.json after resources changed."""
     try:
@@ -666,6 +687,7 @@ def main() -> int:
         return run_selftest(ROOT, config)
 
     _apply_staged_resources(config)
+    _ensure_interface(config)
 
     if not (ROOT / "build" / "generated" / "interface.json").is_file():
         print("Generated interface missing. Run: python lite/apply_scope.py", file=sys.stderr)

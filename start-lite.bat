@@ -1,17 +1,33 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
 
-rem è¿è¡Œæ—¶å¿…é¡»è‡ªå¸¦ï¼Œä¸å†å›é€€åˆ°åŸç‰ˆå®‰è£…ç›®å½•
+rem Ä¬ÈÏÈë¿Ú£ºWPF ¿Í»§¶Ë£¨×Ô¼ºÀ­Æğ Python ·şÎñ²¢ÏÔÊ¾´°¿Ú£©
+rem ÏëÒª¾ÉµÄä¯ÀÀÆ÷¿ØÖÆÌ¨£ºstart-lite.bat --legacy
+
+if /i "%~1"=="--legacy" goto legacy
+
+set "EXE=%CD%\desktop\MaaYuanLite.Desktop\bin\Release\net10.0-windows\MaaYuanLite.Desktop.exe"
+if not exist "%EXE%" set "EXE=%CD%\desktop\MaaYuanLite.Desktop\bin\Debug\net10.0-windows\MaaYuanLite.Desktop.exe"
+if exist "%EXE%" (
+  start "" "%EXE%"
+  exit /b 0
+)
+
+echo [INFO] Î´ÕÒµ½ WPF ²úÎï£¬»ØÍËµ½ä¯ÀÀÆ÷¿ØÖÆÌ¨
+echo        Ïë×Ô¼º±àÒë£ºdotnet build desktop\MaaYuanLite.Desktop
+echo.
+
+:legacy
+rem ÔËĞĞÊ±±ØĞë×Ô´ø£¬²»ÔÙ»ØÍËµ½Ô­°æ°²×°Ä¿Â¼
 set "PY=%CD%\runtime_env\python\python.exe"
 if not exist "%PY%" (
-  echo [ERROR] è¿è¡Œæ—¶ç¼ºå¤±ï¼š%PY%
-  echo è¯·é‡æ–°è§£å‹å®Œæ•´åŒ…ï¼Œæˆ–è¿è¡Œ devtools\setup_runtime.py å‡†å¤‡è¿è¡Œæ—¶ã€‚
+  echo [ERROR] ÔËĞĞÊ±È±Ê§£º%PY%
+  echo ÇëÖØĞÂ½âÑ¹ÍêÕû°ü£¬»òÔËĞĞ devtools\setup_runtime.py ×¼±¸ÔËĞĞÊ±¡£
   pause
   exit /b 1
 )
 
-rem æ¯æ¬¡å¯åŠ¨éƒ½é‡å»º interface.jsonï¼šä¸Šæ¸¸èµ„æºæ›´æ–°åä¸ä¼šå†ç”¨åˆ°æ—§çš„è£å‰ªç»“æœ
+rem Ã¿´ÎÆô¶¯¶¼ÖØ½¨ interface.json£ºÉÏÓÎ×ÊÔ´¸üĞÂºó²»»áÔÙÓÃµ½¾ÉµÄ²Ã¼ô½á¹û
 "%PY%" lite\apply_scope.py
 if errorlevel 1 (
   echo [ERROR] apply_scope failed. Check lite\runtime-config.json.
