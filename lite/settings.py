@@ -22,6 +22,36 @@ DEFAULTS: dict[str, Any] = {
     "auto_update_framework": False,
 }
 
+# The wire format is camelCase; storage stays snake_case so the JSON file and
+# Python call sites keep reading naturally. Both spellings are accepted on the
+# way in until the HTML console is retired.
+CAMEL: dict[str, str] = {
+    "startup_action": "startupAction",
+    "shutdown_action": "shutdownAction",
+    "last_training": "lastTraining",
+    "last_dungeon": "lastDungeon",
+    "auto_update_resources": "autoUpdateResources",
+    "auto_update_framework": "autoUpdateFramework",
+}
+SNAKE: dict[str, str] = {value: key for key, value in CAMEL.items()}
+
+
+def to_wire(data: dict[str, Any]) -> dict[str, Any]:
+    """Response shape: camelCase keys plus the legacy snake_case duplicates."""
+    payload = dict(data)
+    for snake, camel in CAMEL.items():
+        if snake in data:
+            payload[camel] = data[snake]
+    return payload
+
+
+def from_wire(patch: dict[str, Any]) -> dict[str, Any]:
+    """Accept either spelling in a request body."""
+    normalized: dict[str, Any] = {}
+    for key, value in patch.items():
+        normalized[SNAKE.get(key, key)] = value
+    return normalized
+
 
 def load_config() -> dict[str, Any]:
     with CONFIG_FILE.open("r", encoding="utf-8-sig") as handle:

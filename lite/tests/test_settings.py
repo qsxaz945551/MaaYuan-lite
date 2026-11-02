@@ -76,6 +76,30 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(saved["last_training"], "铜钱")
         self.assertTrue(saved["last_dungeon"])
 
+    def test_wire_format_has_both_spellings(self):
+        values = settings.load_settings()
+        wire = settings.to_wire(values)
+        self.assertEqual(wire["startupAction"], values["startup_action"])
+        self.assertEqual(wire["shutdownAction"], values["shutdown_action"])
+        self.assertEqual(wire["lastTraining"], values["last_training"])
+        self.assertEqual(wire["autoUpdateResources"], values["auto_update_resources"])
+        # legacy keys stay until the HTML console is retired
+        self.assertIn("startup_action", wire)
+
+    def test_from_wire_accepts_camel(self):
+        normalized = settings.from_wire({"startupAction": "auto_run", "lastDungeon": True})
+        self.assertEqual(normalized["startup_action"], "auto_run")
+        self.assertTrue(normalized["last_dungeon"])
+
+    def test_from_wire_keeps_snake(self):
+        normalized = settings.from_wire({"startup_action": "minimize_only"})
+        self.assertEqual(normalized["startup_action"], "minimize_only")
+
+    def test_save_through_camel(self):
+        settings.save_settings(settings.from_wire({"startupAction": "auto_run_minimized"}))
+        self.assertEqual(settings.load_settings()["startup_action"], "auto_run_minimized")
+
+
 
 if __name__ == "__main__":
     unittest.main()

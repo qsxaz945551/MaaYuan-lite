@@ -357,8 +357,8 @@ public partial class MainWindow : Window
             if (doc is not null)
             {
                 var root = doc.RootElement;
-                startup = root.TryGetProperty("startup_action", out var s) ? s.GetString() ?? "none" : "none";
-                shutdown = root.TryGetProperty("shutdown_action", out var d) ? d.GetString() ?? "none" : "none";
+                startup = root.TryGetProperty("startupAction", out var s) ? s.GetString() ?? "none" : "none";
+                shutdown = root.TryGetProperty("shutdownAction", out var d) ? d.GetString() ?? "none" : "none";
             }
 
             StartupCombo.ItemsSource = StartupOptions.Select(item => item.Label).ToList();
@@ -380,7 +380,7 @@ public partial class MainWindow : Window
         }
         await _service.PostAsync("/api/settings", new
         {
-            startup_action = StartupOptions[StartupCombo.SelectedIndex].Value,
+            startupAction = StartupOptions[StartupCombo.SelectedIndex].Value,
         });
     }
 
@@ -392,7 +392,7 @@ public partial class MainWindow : Window
         }
         await _service.PostAsync("/api/settings", new
         {
-            shutdown_action = ShutdownOptions[ShutdownCombo.SelectedIndex].Value,
+            shutdownAction = ShutdownOptions[ShutdownCombo.SelectedIndex].Value,
         });
     }
 

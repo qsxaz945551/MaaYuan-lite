@@ -36,8 +36,10 @@ from lite.run_service import RunService
 from lite.settings import (
     SHUTDOWN_ACTIONS,
     STARTUP_ACTIONS,
+    from_wire,
     load_settings,
     save_settings,
+    to_wire,
 )
 from lite.version import API_VERSION, VERSION
 
@@ -467,7 +469,7 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                 )
                 return
             if parsed.path == "/api/settings":
-                self._json(load_settings())
+                self._json(to_wire(load_settings()))
                 return
             if parsed.path == "/api/task-options":
                 query = parse_qs(parsed.query)
@@ -537,8 +539,8 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     self._json({"ok": True, "task": updated[0] if updated else None})
                     return
                 if parsed.path == "/api/settings":
-                    patch = payload if isinstance(payload, dict) else {}
-                    self._json({"ok": True, "settings": save_settings(patch)})
+                    patch = from_wire(payload) if isinstance(payload, dict) else {}
+                    self._json({"ok": True, "settings": to_wire(save_settings(patch))})
                     return
                 if parsed.path == "/api/run-task":
                     names = payload.get("names")

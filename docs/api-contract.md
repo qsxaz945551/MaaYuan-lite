@@ -199,16 +199,20 @@ data: {"status":"running","currentTask":"🏯 据点日常","summary":{},"logSeq
 
 ---
 
-## 八、命名迁移计划
+## 八、命名约定
 
-现状：`/api/state`、`/api/meta`、`/api/health` 已是 camelCase；`/api/settings`、`/api/plan`、`/api/task-options` 仍混用 snake_case。
+**线上格式一律 camelCase**，Python 内部仍用 snake_case，转换只在序列化层发生。
 
-不一次性切换的原因：HTML 控制台有 900 多行 JS 直接读这些字段，一次性改会同时动后端、前端和测试，且没有自动化前端测试兜底。
+现状（2026-11-02）：
 
-迁移分三步：
+| 端点 | 状态 |
+|---|---|
+| `/api/state`、`/api/meta`、`/api/health`、`/api/updates` | 本来就是 camelCase |
+| `/api/settings` | **双写**：同时返回 `startupAction` 与 `startup_action` |
+| `/api/plan`、`/api/task-options` | 字段名本身无下划线，无需转换 |
 
-1. **双写**（WPF 开工前）：后端响应同时带 `startup_action` 与 `startupAction`，旧字段标 `deprecated`。
-2. **切换**：WPF 只用 camelCase；HTML 控制台改读新字段（或随 WPF 上线一起下线）。
-3. **清理**：删除旧字段，`apiVersion` 升到 2。
+`/api/settings` 双写的原因：HTML 控制台（`start-lite.bat --legacy`）仍读旧字段。WPF 已切到 camelCase。
 
-在此之前，新增字段一律用 camelCase，不再增加 snake_case。
+收尾条件：确认不再需要 HTML 控制台后，删除 `lite/settings.py` 里 `to_wire` 的旧字段，`apiVersion` 升到 2。
+
+写入侧已经两种都收（`from_wire`），新代码只写 camelCase。
