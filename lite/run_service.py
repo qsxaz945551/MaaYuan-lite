@@ -21,6 +21,19 @@ from .task_options_service import load_inputs
 from .task_overrides import build_task_override, load_options_snapshot
 
 
+# Only these tasks spend stamina, so only a failure here can mean "ran dry".
+# Checking the dialog on every failure cost 1.2 s per failure and could turn an
+# unrelated failure into a false "succeeded" when the box happened to be open.
+# One file, rotated once at 5 MB: a full day of daily runs is a few hundred KB.
+LOG_MAX_BYTES = 5 * 1024 * 1024
+
+STAMINA_TASKS = ("历练", "白鹄", "地宫")
+
+
+def _consumes_stamina(name: str) -> bool:
+    return any(hint in name for hint in STAMINA_TASKS)
+
+
 # The system ANR dialog, measured on a 720x1280 capture: title around y=478,
 # "等待" at (303, 688). ROIs elsewhere in the pipeline use the same baseline.
 ANR_KEYWORDS = ("没有响应", "无响应", "没有回應")
@@ -86,7 +99,19 @@ class RunService:
         self._last_screenshot = self.project_root / "runtime" / "last-screen.png"
         self._state_file = self.project_root / "runtime" / "last-run.json"
         self._shutdown_hook: Any = None
+        self._log_path = self.project_root / "runtime" / "lite.log"
+        self._rotate_log()
         self._load_last_run()
+
+    def _rotate_log(self) -> None:
+        """Keep one previous file; a day of runs is a few hundred KB."""
+        try:
+            if self._log_path.is_file() and self._log_path.stat().st_size > LOG_MAX_BYTES:
+                rotated = self._log_path.with_suffix(".log.1")
+                rotated.unlink(missing_ok=True)
+                self._log_path.rename(rotated)
+        except OSError:
+            pass
 
     def set_shutdown_hook(self, hook: Any) -> None:
         self._shutdown_hook = hook
@@ -94,14 +119,25 @@ class RunService:
     def _log(self, message: str, level: str = "info") -> None:
         with self._lock:
             self._log_seq += 1
+            stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self._logs.append(
                 {
                     "seq": self._log_seq,
-                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "time": stamp[11:],
                     "level": level,
                     "message": message,
                 }
             )
+            # Appended per line on purpose: a held handle blocked temp-dir
+            # cleanup in tests and would survive a crash without flushing.
+            path = getattr(self, "_log_path", None)
+            if path is not None:
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    with path.open("a", encoding="utf-8") as handle:
+                        handle.write(f"{stamp} [{level}] {message}\n")
+                except OSError:
+                    pass
 
     def _reset_logs(self) -> None:
         """Start a new run without discarding the previous log lines."""
@@ -723,7 +759,7 @@ class RunService:
             self._log(f"任务超时：{name}（{duration}s），继续后续任务。", "error")
             self._capture_failure(session, name)
             self._recover_after_failure(session, name)
-        elif self._stamina_exhausted(session):
+        elif _consumes_stamina(name) and self._stamina_exhausted(session):
             outcome["status"] = "succeeded"
             outcome["reason"] = "体力耗尽，已结束"
             self._log(f"体力耗尽，任务结束：{name}（{duration}s）")

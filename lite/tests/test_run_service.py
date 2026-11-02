@@ -432,5 +432,21 @@ class RunServiceTest(unittest.TestCase):
         self.assertEqual(state["tasks"][-1]["status"], "succeeded")
 
 
+class StaminaScopeTest(unittest.TestCase):
+    """Only farming tasks can end a run by running out of stamina."""
+
+    def test_farming_tasks_are_checked(self) -> None:
+        from lite.run_service import _consumes_stamina
+
+        for name in ("💎 修为历练", "💲 铜钱历练", "🗡 白鹄扫荡", "🗡 地宫助手"):
+            self.assertTrue(_consumes_stamina(name), name)
+
+    def test_other_tasks_are_not(self) -> None:
+        from lite.run_service import _consumes_stamina
+
+        for name in ("🚀 启动游戏", "💰 领月卡福利", "🏯 据点日常", "🔮 观星", "🔶 日常收尾"):
+            self.assertFalse(_consumes_stamina(name), name)
+
+
 if __name__ == "__main__":
     unittest.main()
