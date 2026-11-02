@@ -15,8 +15,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:  # imported as lite.apply_scope
+    from .deepmerge import deep_merge
     from .version import VERSION
 except ImportError:  # run directly: python lite/apply_scope.py
+    from deepmerge import deep_merge
     from version import VERSION
 
 
@@ -43,13 +45,8 @@ def resolve_source(config_path: Path = DEFAULT_CONFIG) -> Path:
 
 
 def merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
-    result = dict(base)
-    for key, value in patch.items():
-        if isinstance(value, dict) and isinstance(result.get(key), dict):
-            result[key] = merge_dict(result[key], value)
-        else:
-            result[key] = value
-    return result
+    """Thin alias kept for call sites; see ``lite.deepmerge``."""
+    return deep_merge(base, patch, copy_values=False)
 
 
 def load_json(path: Path) -> dict[str, Any]:

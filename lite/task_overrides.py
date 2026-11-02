@@ -7,18 +7,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .deepmerge import deep_merge
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def merge_pipeline(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
-    result = copy.deepcopy(base)
-    for key, value in patch.items():
-        if isinstance(value, dict) and isinstance(result.get(key), dict):
-            result[key] = merge_pipeline(result[key], value)
-        else:
-            result[key] = copy.deepcopy(value)
-    return result
+    """Thin alias kept for call sites; see ``lite.deepmerge``."""
+    return deep_merge(base, patch, copy_values=True)
 
 
 def _case_index(group: dict[str, Any], selected: dict[str, int], name: str) -> int:
