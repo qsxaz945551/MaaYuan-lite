@@ -12,6 +12,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+try:  # imported as lite.apply_scope
+    from .version import VERSION
+except ImportError:  # run directly: python lite/apply_scope.py
+    from version import VERSION
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SCOPE = ROOT / "lite" / "scope.json"
@@ -101,7 +108,7 @@ def apply_scope(
     lite_interface = dict(interface)
     lite_interface["name"] = "MaaYuan Lite"
     lite_interface["custom_title"] = "Maa鸢 Lite"
-    lite_interface["version"] = "0.1.0-dev"
+    lite_interface["version"] = VERSION
     lite_interface["task"] = kept_tasks
 
     report = {

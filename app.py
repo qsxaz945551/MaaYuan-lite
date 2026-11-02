@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,12 +16,32 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
+RUN_STATES = (
+    "idle",
+    "starting",
+    "running",
+    "checking",
+    "completed",
+    "completed_with_errors",
+    "cancelled",
+    "error",
+    "interrupted",
+)
+TASK_STATES = ("pending", "running", "succeeded", "failed", "timed_out", "skipped", "cancelled")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from lite.daily_plan import build_plan, load_profile
 from lite.run_service import RunService
-from lite.settings import load_settings, save_settings
+from lite.settings import (
+    SHUTDOWN_ACTIONS,
+    STARTUP_ACTIONS,
+    load_settings,
+    save_settings,
+)
+from lite.version import API_VERSION, VERSION
+
+APP_VERSION = VERSION
 from lite.task_options_service import (
     DEFAULT_INPUTS,
     DEFAULT_SELECTION,
@@ -37,6 +58,9 @@ UI_FILE = ROOT / "lite" / "ui" / "index.html"
 CONFIG_FILE = ROOT / "lite" / "runtime-config.json"
 INTERFACE_FILE = ROOT / "build" / "generated" / "interface.json"
 OPTION_LOCK = threading.Lock()
+
+
+_HEALTH_CACHE: dict[str, object] = {"at": 0.0, "data": None}
 
 
 def load_config() -> dict:
@@ -254,6 +278,30 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                 except Exception as error:
                     self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
                 return
+            if parsed.path == "/api/health":
+                query = parse_qs(parsed.query)
+                force = query.get("refresh", ["0"])[0] == "1"
+                now = time.time()
+                if force or _HEALTH_CACHE["data"] is None or now - float(_HEALTH_CACHE["at"]) > 30:
+                    from lite.selftest import collect
+
+                    _HEALTH_CACHE["data"] = collect(ROOT, service.config)
+                    _HEALTH_CACHE["at"] = now
+                self._json(_HEALTH_CACHE["data"])
+                return
+            if parsed.path == "/api/meta":
+                self._json(
+                    {
+                        "version": APP_VERSION,
+                        "apiVersion": API_VERSION,
+                        "runStates": list(RUN_STATES),
+                        "taskStates": list(TASK_STATES),
+                        "startupActions": list(STARTUP_ACTIONS),
+                        "shutdownActions": list(SHUTDOWN_ACTIONS),
+                        "trainingTypes": ["修为", "铜钱", "经验"],
+                    }
+                )
+                return
             if parsed.path == "/api/settings":
                 self._json(load_settings())
                 return
@@ -398,6 +446,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--port", type=int)
+    parser.add_argument("--parent-pid", type=int, help="父进程退出时自动关闭")
     parser.add_argument("--selftest", action="store_true", help="检查运行环境后退出")
     args = parser.parse_args()
 
@@ -429,6 +478,12 @@ def main() -> int:
     actual_port = server.server_address[1]
     url = f"http://{config.get('host', '127.0.0.1')}:{actual_port}"
     print(f"MaaYuan Lite 控制台: {url}", flush=True)
+
+    # The shell reads this instead of parsing stdout; it also makes the real
+    # port visible when 8765 was busy and the server fell back to a random one.
+    port_file = ROOT / "runtime" / "port.txt"
+    port_file.parent.mkdir(parents=True, exist_ok=True)
+    port_file.write_text(str(actual_port), encoding="utf-8")
     settings = load_settings()
     startup = settings.get("startup_action", "none")
 
@@ -437,6 +492,11 @@ def main() -> int:
         server.shutdown()
 
     service.set_shutdown_hook(_shutdown)
+
+    if args.parent_pid:
+        from lite.process_guard import watch_parent
+
+        watch_parent(args.parent_pid, _shutdown)
 
     if not args.no_browser:
         minimized = startup in ("minimize_only", "auto_run_minimized")
@@ -454,6 +514,7 @@ def main() -> int:
     finally:
         service.stop()
         server.server_close()
+        port_file.unlink(missing_ok=True)
     return 0
 
 

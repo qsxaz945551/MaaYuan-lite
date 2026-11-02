@@ -30,20 +30,31 @@ def _resolve(value: str, project_root: Path, default: Path) -> Path:
 
 
 class Report:
-    def __init__(self) -> None:
+    def __init__(self, echo: bool = True) -> None:
+        self.echo = echo
+        self.items: list[dict[str, str]] = []
         self.failed = 0
         self.warned = 0
 
+    def _add(self, name: str, status: str, detail: str) -> None:
+        self.items.append({"name": name, "status": status, "detail": detail})
+
     def ok(self, name: str, detail: str = "") -> None:
-        print(f"{OK} {name:<16}{detail}")
+        self._add(name, "ok", detail)
+        if self.echo:
+            print(f"{OK} {name:<16}{detail}")
 
     def fail(self, name: str, detail: str) -> None:
         self.failed += 1
-        print(f"{FAIL} {name:<16}{detail}")
+        self._add(name, "fail", detail)
+        if self.echo:
+            print(f"{FAIL} {name:<16}{detail}")
 
     def warn(self, name: str, detail: str) -> None:
         self.warned += 1
-        print(f"{WARN} {name:<16}{detail}")
+        self._add(name, "warn", detail)
+        if self.echo:
+            print(f"{WARN} {name:<16}{detail}")
 
 
 def _package_version(dist: str) -> str:
@@ -210,31 +221,31 @@ def _check_port(report: Report, host: str, port: int) -> None:
         report.ok("端口", f"{host}:{port} 可用")
 
 
-def run_selftest(project_root: Path, config: dict[str, Any]) -> int:
-    if hasattr(sys.stdout, "reconfigure"):
+def evaluate(project_root: Path, config: dict[str, Any], echo: bool = True) -> Report:
+    say = print if echo else (lambda *args, **kwargs: None)
+    if echo and hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         except Exception:  # noqa: BLE001
             pass
 
-    print("MaaYuan Lite 自检\n" + "=" * 60)
-    print("（若出现 PluginMgr ... plugins 报错，属已知正常输出，不影响识别与点击）\n")
-    report = Report()
+    say("MaaYuan Lite 自检\n" + "=" * 60)
+    say("（若出现 PluginMgr ... plugins 报错，属已知正常输出，不影响识别与点击）\n")
+    report = Report(echo)
 
     runtime_root = _resolve(str(config.get("runtime_root", "")), project_root, project_root)
     resource_root = _resolve(str(config.get("resource_root", "")), project_root,
                              project_root / "assets" / "resource" / "base")
     agent_root = _resolve(str(config.get("agent_root", "")), project_root, project_root / "agent")
-    interface_source = str(config.get("interface_source", "")).strip()
     interface_file = project_root / "build" / "generated" / "interface.json"
     adb_path = _resolve(str(config.get("adb_path", "")), project_root, project_root / "adb.exe")
     serial = str(config.get("adb_serial", "emulator-5554"))
 
-    print(f"runtime_root : {runtime_root}")
-    print(f"resource_root: {resource_root}")
-    print(f"agent_root   : {agent_root}")
-    print(f"interface    : {interface_file}")
-    print(f"adb          : {adb_path}\n")
+    say(f"runtime_root : {runtime_root}")
+    say(f"resource_root: {resource_root}")
+    say(f"agent_root   : {agent_root}")
+    say(f"interface    : {interface_file}")
+    say(f"adb          : {adb_path}\n")
 
     _check_python(report)
     _check_packages(report)
@@ -246,9 +257,25 @@ def run_selftest(project_root: Path, config: dict[str, Any]) -> int:
     _check_interface(report, project_root)
     _check_port(report, str(config.get("host", "127.0.0.1")), int(config.get("port", 8765)))
 
+    return report
+
+
+def run_selftest(project_root: Path, config: dict[str, Any]) -> int:
+    report = evaluate(project_root, config, echo=True)
     print("=" * 60)
     if report.failed:
         print(f"结论：{report.failed} 项失败，{report.warned} 项警告")
         return 1
     print(f"结论：通过（{report.warned} 项警告）")
     return 0
+
+
+def collect(project_root: Path, config: dict[str, Any]) -> dict[str, Any]:
+    """Same checks, no printing: used by GET /api/health."""
+    report = evaluate(project_root, config, echo=False)
+    return {
+        "ok": report.failed == 0,
+        "failed": report.failed,
+        "warned": report.warned,
+        "checks": report.items,
+    }
