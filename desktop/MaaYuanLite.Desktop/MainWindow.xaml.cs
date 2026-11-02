@@ -3,9 +3,11 @@ using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using MaaYuanLite.Desktop.Models;
 using MaaYuanLite.Desktop.Services;
 
 namespace MaaYuanLite.Desktop;
@@ -15,8 +17,27 @@ public partial class MainWindow : Window
     private readonly LiteService _service = new();
     private readonly ObservableCollection<string> _logs = new();
     private readonly ObservableCollection<string> _tasks = new();
+    private readonly List<string> _taskNames = new();
+    private readonly Dictionary<string, List<OptionGroup>> _options = new();
     private DispatcherTimer? _timer;
     private int _cursor;
+    private bool _optionsLoaded;
+    private bool _loadingSettings;
+
+    private static readonly (string Value, string Label)[] StartupOptions =
+    {
+        ("none", "只打开界面"),
+        ("minimize_only", "打开并最小化"),
+        ("auto_run", "自动运行日常"),
+        ("auto_run_minimized", "自动运行并最小化"),
+    };
+
+    private static readonly (string Value, string Label)[] ShutdownOptions =
+    {
+        ("none", "不处理"),
+        ("close_maa", "关闭 Lite"),
+        ("close_both", "关闭模拟器和 Lite"),
+    };
 
     public MainWindow()
     {
@@ -39,10 +60,10 @@ public partial class MainWindow : Window
 
         FootText.Text = $"{_service.BaseUri}    root: {_service.Root}";
         await RefreshAsync();
+        await LoadOptionsAsync();
+        await LoadSettingsAsync();
 
-        // Headless UI check: renders the window to PNG and exits. Used by the
-        // build script and by manual smoke tests on machines without a visible
-        // desktop session.
+        // Headless UI check: renders the window to PNG and exits.
         var args = Environment.GetCommandLineArgs();
         var shotIndex = Array.IndexOf(args, "--screenshot");
         if (shotIndex >= 0 && shotIndex + 1 < args.Length)
@@ -56,19 +77,41 @@ public partial class MainWindow : Window
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _timer.Tick += async (_, _) => await RefreshAsync();
         _timer.Start();
+
+        await WarnIfUnhealthyAsync();
     }
 
-    private void SaveScreenshot(string path)
+    /// <summary>
+    /// Show a dialog only when the environment is genuinely broken (missing
+    /// runtime, resources or OCR model). A closed emulator is a warning, not a
+    /// failure, so the normal "start the emulator later" flow stays quiet.
+    /// </summary>
+    private async Task WarnIfUnhealthyAsync()
     {
-        UpdateLayout();
-        var width = (int)Math.Max(ActualWidth, 1);
-        var height = (int)Math.Max(ActualHeight, 1);
-        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(this);
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var stream = File.Create(path);
-        encoder.Save(stream);
+        using var doc = await _service.GetAsync("/api/health");
+        if (doc is null)
+        {
+            return;
+        }
+        if (!doc.RootElement.TryGetProperty("ok", out var ok) || ok.GetBoolean())
+        {
+            return;
+        }
+
+        var problems = doc.RootElement.GetProperty("checks").EnumerateArray()
+            .Where(check => check.GetProperty("status").GetString() == "fail")
+            .Select(check => $"{check.GetProperty("name").GetString()}：{check.GetProperty("detail").GetString()}")
+            .ToList();
+        if (problems.Count == 0)
+        {
+            return;
+        }
+
+        MessageBox.Show(
+            "环境检查未通过：\n\n" + string.Join("\n", problems),
+            "MaaYuan Lite",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
     }
 
     private async Task RefreshAsync()
@@ -85,12 +128,23 @@ public partial class MainWindow : Window
         StatusText.Text = string.IsNullOrEmpty(current) ? status : $"{status} · {current}";
 
         var tasks = root.GetProperty("tasks").EnumerateArray().ToList();
+        var selected = TaskList.SelectedIndex;
         if (tasks.Count != _tasks.Count)
         {
             _tasks.Clear();
+            _taskNames.Clear();
             foreach (var task in tasks)
             {
                 _tasks.Add(FormatTask(task));
+                _taskNames.Add(task.GetProperty("name").GetString() ?? "");
+            }
+            if (selected >= 0 && selected < _tasks.Count)
+            {
+                TaskList.SelectedIndex = selected;
+            }
+            else if (_tasks.Count > 0 && TaskList.SelectedIndex < 0)
+            {
+                TaskList.SelectedIndex = 0;
             }
         }
         else
@@ -123,6 +177,295 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task LoadSettingsAsync()
+    {
+        _loadingSettings = true;
+        try
+        {
+            var startup = "none";
+            var shutdown = "none";
+            using var doc = await _service.GetAsync("/api/settings");
+            if (doc is not null)
+            {
+                var root = doc.RootElement;
+                startup = root.TryGetProperty("startup_action", out var s) ? s.GetString() ?? "none" : "none";
+                shutdown = root.TryGetProperty("shutdown_action", out var d) ? d.GetString() ?? "none" : "none";
+            }
+
+            StartupCombo.ItemsSource = StartupOptions.Select(item => item.Label).ToList();
+            ShutdownCombo.ItemsSource = ShutdownOptions.Select(item => item.Label).ToList();
+            StartupCombo.SelectedIndex = Math.Max(0, Array.FindIndex(StartupOptions, item => item.Value == startup));
+            ShutdownCombo.SelectedIndex = Math.Max(0, Array.FindIndex(ShutdownOptions, item => item.Value == shutdown));
+        }
+        finally
+        {
+            _loadingSettings = false;
+        }
+    }
+
+    private async void OnStartupChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingSettings || StartupCombo.SelectedIndex < 0)
+        {
+            return;
+        }
+        await _service.PostAsync("/api/settings", new
+        {
+            startup_action = StartupOptions[StartupCombo.SelectedIndex].Value,
+        });
+    }
+
+    private async void OnShutdownChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingSettings || ShutdownCombo.SelectedIndex < 0)
+        {
+            return;
+        }
+        await _service.PostAsync("/api/settings", new
+        {
+            shutdown_action = ShutdownOptions[ShutdownCombo.SelectedIndex].Value,
+        });
+    }
+
+    private async Task LoadOptionsAsync()
+    {
+        using var doc = await _service.GetAsync("/api/task-options?scope=daily");
+        if (doc is null)
+        {
+            return;
+        }
+        if (!doc.RootElement.TryGetProperty("tasks", out var tasks))
+        {
+            return;
+        }
+
+        _options.Clear();
+        foreach (var task in tasks.EnumerateArray())
+        {
+            var name = task.GetProperty("name").GetString() ?? "";
+            var groups = new List<OptionGroup>();
+            if (task.TryGetProperty("groups", out var array) && array.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var group in array.EnumerateArray())
+                {
+                    groups.Add(ParseGroup(group, name));
+                }
+            }
+            _options[name] = groups;
+        }
+        _optionsLoaded = true;
+        RenderSelectedTask();
+    }
+
+    private static OptionGroup ParseGroup(JsonElement element, string taskName)
+    {
+        var cases = new List<string>();
+        if (element.TryGetProperty("cases", out var caseArray) && caseArray.ValueKind == JsonValueKind.Array)
+        {
+            cases.AddRange(caseArray.EnumerateArray().Select(item => item.GetString() ?? ""));
+        }
+
+        var fields = new List<OptionField>();
+        if (element.TryGetProperty("fields", out var fieldArray) && fieldArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var field in fieldArray.EnumerateArray())
+            {
+                fields.Add(new OptionField
+                {
+                    Name = field.GetProperty("name").GetString() ?? "",
+                    Label = field.TryGetProperty("label", out var label) ? label.GetString() ?? "" : "",
+                    Value = field.TryGetProperty("value", out var value) ? value.GetString() ?? "" : "",
+                });
+            }
+        }
+
+        return new OptionGroup
+        {
+            TaskName = taskName,
+            Group = element.GetProperty("group").GetString() ?? "",
+            Type = element.TryGetProperty("type", out var type) ? type.GetString() ?? "select" : "select",
+            Depth = element.TryGetProperty("depth", out var depth) ? depth.GetInt32() : 0,
+            Description = element.TryGetProperty("description", out var description) ? description.GetString() ?? "" : "",
+            Label = element.TryGetProperty("label", out var groupLabel) ? groupLabel.GetString() ?? "" : "",
+            Cases = cases,
+            Selected = element.TryGetProperty("selected", out var selected) ? selected.GetInt32() : 0,
+            Fields = fields,
+        };
+    }
+
+    private void OnTaskSelected(object sender, SelectionChangedEventArgs e)
+    {
+        RenderSelectedTask();
+    }
+
+    private void RenderSelectedTask()
+    {
+        var index = TaskList.SelectedIndex;
+        if (index < 0 || index >= _taskNames.Count)
+        {
+            return;
+        }
+        var name = _taskNames[index];
+        Breadcrumb.Text = $"今日日常 › {name}";
+        if (!_optionsLoaded)
+        {
+            return;
+        }
+        RenderOptions(_options.TryGetValue(name, out var groups) ? groups : new List<OptionGroup>());
+    }
+
+    private void RenderOptions(List<OptionGroup> groups)
+    {
+        OptionsPanel.Children.Clear();
+        if (groups.Count == 0)
+        {
+            OptionsPanel.Children.Add(new TextBlock
+            {
+                Text = "该任务没有可调选项",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)),
+            });
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            var row = new Grid { Margin = new Thickness(group.Depth * 16, 0, 0, 12) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            label.Children.Add(new TextBlock
+            {
+                Text = group.Group,
+                FontWeight = FontWeights.Medium,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            if (!string.IsNullOrEmpty(group.Description))
+            {
+                label.Children.Add(new TextBlock
+                {
+                    Text = group.Description,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)),
+                    FontSize = 11,
+                    TextWrapping = TextWrapping.Wrap,
+                });
+            }
+            Grid.SetColumn(label, 0);
+            row.Children.Add(label);
+
+            var control = group.Type == "input"
+                ? BuildInput(group)
+                : group.IsSwitch ? BuildSwitch(group) : BuildSelect(group);
+            Grid.SetColumn(control, 1);
+            row.Children.Add(control);
+
+            OptionsPanel.Children.Add(row);
+        }
+    }
+
+    private FrameworkElement BuildSelect(OptionGroup group)
+    {
+        var combo = new ComboBox
+        {
+            ItemsSource = group.Cases,
+            SelectedIndex = Math.Clamp(group.Selected, 0, Math.Max(group.Cases.Count - 1, 0)),
+            MinWidth = 170,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        combo.SelectionChanged += async (_, _) =>
+        {
+            if (combo.SelectedIndex < 0)
+            {
+                return;
+            }
+            await SaveIndexAsync(group, combo.SelectedIndex);
+        };
+        return combo;
+    }
+
+    private FrameworkElement BuildSwitch(OptionGroup group)
+    {
+        var isOn = group.Selected == group.OnIndex;
+        var check = new CheckBox
+        {
+            IsChecked = isOn,
+            Content = isOn ? "开" : "关",
+            MinWidth = 56,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        check.Checked += async (_, _) =>
+        {
+            check.Content = "开";
+            await SaveIndexAsync(group, group.OnIndex);
+        };
+        check.Unchecked += async (_, _) =>
+        {
+            check.Content = "关";
+            await SaveIndexAsync(group, group.OffIndex);
+        };
+        return check;
+    }
+
+    private FrameworkElement BuildInput(OptionGroup group)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var boxes = new List<TextBox>();
+        foreach (var field in group.Fields)
+        {
+            if (group.Fields.Count > 1)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text = field.Label,
+                    Margin = new Thickness(0, 0, 6, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 12,
+                });
+            }
+            var box = new TextBox
+            {
+                Text = field.Value,
+                Width = 150,
+                Margin = new Thickness(0, 0, 8, 0),
+                Tag = field.Name,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            box.LostFocus += async (_, _) =>
+            {
+                var values = boxes.ToDictionary(item => (string)item.Tag!, item => item.Text);
+                await SaveInputsAsync(group, values);
+            };
+            boxes.Add(box);
+            panel.Children.Add(box);
+        }
+        return panel;
+    }
+
+    private async Task SaveIndexAsync(OptionGroup group, int index)
+    {
+        var ok = await _service.PostAsync("/api/task-options", new
+        {
+            task = group.TaskName,
+            group = group.Group,
+            index,
+        });
+        if (ok)
+        {
+            // Nested options appear or disappear after a change; reload quietly.
+            await LoadOptionsAsync();
+        }
+    }
+
+    private async Task SaveInputsAsync(OptionGroup group, Dictionary<string, string> values)
+    {
+        await _service.PostAsync("/api/task-options", new
+        {
+            task = group.TaskName,
+            group = group.Group,
+            inputs = values,
+        });
+    }
+
     private static string FormatTask(JsonElement task)
     {
         var name = task.GetProperty("name").GetString();
@@ -137,6 +480,19 @@ public partial class MainWindow : Window
             _ => "·",
         };
         return $"{mark}  {name}";
+    }
+
+    private void SaveScreenshot(string path)
+    {
+        UpdateLayout();
+        var width = (int)Math.Max(ActualWidth, 1);
+        var height = (int)Math.Max(ActualHeight, 1);
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(this);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
     }
 
     private async void OnCheck(object sender, RoutedEventArgs e)

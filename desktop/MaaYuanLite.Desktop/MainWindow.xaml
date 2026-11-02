@@ -22,6 +22,10 @@
                     </Border>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="启动时" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="StartupCombo" Width="132" Margin="0,0,10,0" SelectionChanged="OnStartupChanged"/>
+                    <TextBlock Text="结束后" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="ShutdownCombo" Width="132" Margin="0,0,12,0" SelectionChanged="OnShutdownChanged"/>
                     <Button Content="检查连接" Padding="14,6" Margin="0,0,8,0" Click="OnCheck"/>
                     <Button Content="开始日常" Padding="14,6" Margin="0,0,8,0" Click="OnStart"/>
                     <Button Content="停止" Padding="14,6" Click="OnStop"/>
@@ -41,14 +45,18 @@
             <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="8">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="执行顺序" FontWeight="SemiBold" Margin="8,4,8,8"/>
-                    <ListBox x:Name="TaskList" BorderThickness="0" FontSize="13"/>
+                    <ListBox x:Name="TaskList" BorderThickness="0" FontSize="13"
+                             SelectionChanged="OnTaskSelected"/>
                 </DockPanel>
             </Border>
 
             <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="12">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="任务选项" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                    <TextBlock Text="选项面板将在下一步接入" Foreground="#9CA3AF"/>
+                    <TextBlock x:Name="Breadcrumb" DockPanel.Dock="Top" Text="任务选项"
+                               FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="OptionsPanel"/>
+                    </ScrollViewer>
                 </DockPanel>
             </Border>
 
