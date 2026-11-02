@@ -58,6 +58,7 @@ class RunService:
         self._plan: dict[str, Any] | None = None
         self._single: dict[str, Any] | None = None
         self._summary: dict[str, Any] = {}
+        self._preview: list[dict[str, Any]] | None = None
         self._started_at = ""
         self._finished_at = ""
         self._last_screenshot = self.project_root / "runtime" / "last-screen.png"
@@ -162,7 +163,10 @@ class RunService:
             return {
                 "status": self._status,
                 "currentTask": self._current_task,
-                "tasks": [dict(task) for task in self._tasks],
+                "tasks": [
+                    dict(task)
+                    for task in (self._tasks if self._tasks else self._preview_tasks())
+                ],
                 "summary": dict(self._summary),
                 "startedAt": self._started_at,
                 "finishedAt": self._finished_at,
@@ -184,6 +188,43 @@ class RunService:
 
     def _busy(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
+
+    def _preview_tasks(self) -> list[dict[str, Any]]:
+        """The plan shown before the first run, so the window is not empty.
+
+        These are display-only: they never enter ``_tasks``, so ``canResume``
+        stays false and a fresh install cannot accidentally "resume" a run that
+        never happened.
+        """
+        if self._preview is not None:
+            return [dict(task) for task in self._preview]
+
+        try:
+            settings = load_settings()
+            plan = build_plan(
+                load_profile(),
+                training=str(settings.get("last_training", "修为")),
+                include_seasonal=bool(settings.get("last_dungeon", False)),
+            )
+            preview = []
+            for item in plan["tasks"]:
+                timeout = item.get("timeout_sec")
+                if timeout is None:
+                    timeout = DEFAULT_TIMEOUTS.get(item["name"], 1800)
+                preview.append(
+                    {
+                        "name": item["name"],
+                        "kind": item.get("kind", "daily"),
+                        "status": "pending",
+                        "duration": 0,
+                        "attempts": 0,
+                        "timeout": timeout,
+                    }
+                )
+            self._preview = preview
+        except Exception:  # noqa: BLE001 - preview must never break the API
+            self._preview = []
+        return [dict(task) for task in self._preview]
 
     def start_daily(
         self, training: str, include_dungeon: bool, resume: bool = False
