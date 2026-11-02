@@ -374,13 +374,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--port", type=int)
+    parser.add_argument("--selftest", action="store_true", help="检查运行环境后退出")
     args = parser.parse_args()
+
+    config = load_config()
+
+    if args.selftest:
+        from lite.selftest import run_selftest
+
+        return run_selftest(ROOT, config)
 
     if not (ROOT / "build" / "generated" / "interface.json").is_file():
         print("Generated interface missing. Run: python lite/apply_scope.py", file=sys.stderr)
         return 1
 
-    config = load_config()
     port = args.port or int(config.get("port", 8765))
     host = config.get("host", "127.0.0.1")
     if not args.no_browser and running_instance(host, port):

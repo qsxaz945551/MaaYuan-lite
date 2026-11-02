@@ -479,4 +479,6 @@ DailyRewards.txt
 /assets/config/
 /vendor/
 /runtime/
+/runtime_env/
 /lite/task-inputs.json
+/lite/runtime-config.dev.json

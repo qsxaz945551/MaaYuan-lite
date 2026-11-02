@@ -2,12 +2,11 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 
-set "PY=%CD%\python\python.exe"
-if not exist "%PY%" set "PY=D:\Apps Game\MaaYuan-win-x86_64-v2.1.1-beta.6\python\python.exe"
-
+rem 运行时必须自带，不再回退到原版安装目录
+set "PY=%CD%\runtime_env\python\python.exe"
 if not exist "%PY%" (
-  echo [ERROR] Python runtime not found.
-  echo Put the embedded runtime in .\python\ or update start-lite.bat.
+  echo [ERROR] 运行时缺失：%PY%
+  echo 请重新解压完整包，或运行 devtools\setup_runtime.py 准备运行时。
   pause
   exit /b 1
 )

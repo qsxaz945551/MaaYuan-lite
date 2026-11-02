@@ -1,5 +1,5 @@
 {
-  "runtime_root": "D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6",
+  "runtime_root": "runtime_env",
   "adb_path": "D:/Apps Game/LDPlayer14/adb.exe",
   "adb_serial": "emulator-5554",
   "resource_path": "assets/resource/base",
