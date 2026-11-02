@@ -903,6 +903,26 @@ class RunService:
                 self._session = None
                 self._current_task = ""
 
+    def _resume_mismatch(
+        self, plan: dict[str, Any], by_name: dict[str, Any]
+    ) -> str | None:
+        """Why the saved run cannot be resumed, or None when it can.
+
+        The daily chain is addressed by index, so a profile edit (different
+        training type, dungeon toggled) shifts every task by one. Resuming then
+        silently runs the wrong task with the wrong options.
+        """
+        planned = plan.get("tasks", [])
+        if len(planned) != len(self._tasks):
+            return f"任务数量从 {len(self._tasks)} 变成 {len(planned)}"
+        for index, item in enumerate(planned):
+            saved = self._tasks[index]["name"]
+            if saved != item["name"]:
+                return f"第 {index + 1} 项由「{saved}」变成「{item['name']}」"
+            if item["name"] not in by_name:
+                return f"当前资源里没有任务「{item['name']}」"
+        return None
+
     def _run_daily(
         self, training: str, include_dungeon: bool, resume: bool = False
     ) -> None:
@@ -913,14 +933,26 @@ class RunService:
         )
         options = load_options_snapshot()
         inputs = load_inputs()
+        by_name = {task["name"]: task for task in interface["task"]}
+        resumed = False
         if resume and self._plan is not None and self._tasks:
             plan = self._plan
-            with self._lock:
-                for task in self._tasks:
-                    if task["status"] != "succeeded":
-                        task.update({"status": "pending", "duration": 0, "attempts": 0})
-            self._log("继续上次未完成的日常：已完成的任务会跳过。", "warn")
-        else:
+            problem = self._resume_mismatch(plan, by_name)
+            if problem:
+                self._log(
+                    f"上次的运行记录与当前任务对不上（{problem}），这次重新开始整条日常。",
+                    "warn",
+                )
+            else:
+                with self._lock:
+                    for task in self._tasks:
+                        if task["status"] != "succeeded":
+                            task.update(
+                                {"status": "pending", "duration": 0, "attempts": 0}
+                            )
+                self._log("继续上次未完成的日常：已完成的任务会跳过。", "warn")
+                resumed = True
+        if not resumed:
             profile = load_profile()
             plan = build_plan(
                 profile, training=training, include_seasonal=include_dungeon
@@ -942,7 +974,6 @@ class RunService:
                     for item in plan["tasks"]
                 ]
                 self._plan = plan
-        by_name = {task["name"]: task for task in interface["task"]}
         for skipped in plan["skipped"]:
             self._log(f"跳过 {skipped['name']}：地宫开放期未开启。", "warn")
 

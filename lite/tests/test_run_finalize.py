@@ -117,5 +117,43 @@ class UpdateRunTest(unittest.TestCase):
         self.assertEqual(service._summary, {"succeeded": 8, "failed": 0})
 
 
+class ResumeMismatchTest(unittest.TestCase):
+    """Resuming addresses tasks by index; any shift must be refused."""
+
+    def _service(self, names: list[str]) -> RunService:
+        return make_service([{"name": name, "status": "succeeded"} for name in names])
+
+    def _plan(self, names: list[str]) -> dict:
+        return {"tasks": [{"name": name} for name in names], "skipped": []}
+
+    def test_identical_plan_is_resumable(self) -> None:
+        service = self._service(["启动游戏", "据点日常"])
+        plan = self._plan(["启动游戏", "据点日常"])
+        by_name = {"启动游戏": {}, "据点日常": {}}
+        self.assertIsNone(service._resume_mismatch(plan, by_name))
+
+    def test_length_change_is_refused(self) -> None:
+        service = self._service(["启动游戏", "据点日常"])
+        plan = self._plan(["启动游戏", "据点日常", "观星"])
+        problem = service._resume_mismatch(plan, {"启动游戏": {}})
+        self.assertIn("数量", problem or "")
+
+    def test_name_shift_is_refused(self) -> None:
+        # Switching the training type renames the 5th entry.
+        service = self._service(["启动游戏", "修为历练", "日常收尾"])
+        plan = self._plan(["启动游戏", "铜钱历练", "日常收尾"])
+        problem = service._resume_mismatch(
+            plan, {"启动游戏": {}, "铜钱历练": {}, "日常收尾": {}}
+        )
+        self.assertIn("第 2 项", problem or "")
+        self.assertIn("修为历练", problem or "")
+
+    def test_missing_task_in_resources_is_refused(self) -> None:
+        service = self._service(["启动游戏", "已下线任务"])
+        plan = self._plan(["启动游戏", "已下线任务"])
+        problem = service._resume_mismatch(plan, {"启动游戏": {}})
+        self.assertIn("已下线任务", problem or "")
+
+
 if __name__ == "__main__":
     unittest.main()
