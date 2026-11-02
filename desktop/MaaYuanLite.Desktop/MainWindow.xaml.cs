@@ -63,12 +63,16 @@ public partial class MainWindow : Window
         await LoadOptionsAsync();
         await LoadSettingsAsync();
 
+        // Kick off the update check before the slower health check so the badge
+        // has time to appear while the window is still settling.
+        _ = CheckUpdatesAsync();
+
         // Headless UI check: renders the window to PNG and exits.
         var args = Environment.GetCommandLineArgs();
         var shotIndex = Array.IndexOf(args, "--screenshot");
         if (shotIndex >= 0 && shotIndex + 1 < args.Length)
         {
-            await Task.Delay(1500);
+            await Task.Delay(3000);
             SaveScreenshot(args[shotIndex + 1]);
             Application.Current.Shutdown();
             return;
@@ -79,7 +83,6 @@ public partial class MainWindow : Window
         _timer.Start();
 
         await WarnIfUnhealthyAsync();
-        _ = CheckUpdatesAsync();
     }
 
     private async Task CheckUpdatesAsync()
@@ -87,20 +90,40 @@ public partial class MainWindow : Window
         try
         {
             using var doc = await _service.GetAsync("/api/updates");
-            if (doc is null || !doc.RootElement.TryGetProperty("resource", out var resource))
+            if (doc is null)
             {
                 return;
             }
-            var available = resource.TryGetProperty("available", out var flag) && flag.GetBoolean();
-            if (!available)
+
+            var badges = new List<string>();
+            var details = new List<string>();
+
+            if (doc.RootElement.TryGetProperty("resource", out var resource) &&
+                resource.TryGetProperty("available", out var resourceFlag) && resourceFlag.GetBoolean())
+            {
+                var remote = resource.TryGetProperty("remote", out var sha) ? sha.GetString() : null;
+                var date = resource.TryGetProperty("remoteDate", out var day) ? day.GetString() : null;
+                badges.Add("资源");
+                details.Add($"资源：上游 {remote}（{date}）");
+            }
+
+            if (doc.RootElement.TryGetProperty("framework", out var framework) &&
+                framework.TryGetProperty("available", out var frameworkFlag) && frameworkFlag.GetBoolean())
+            {
+                var latest = framework.TryGetProperty("latest", out var latestValue) ? latestValue.GetString() : null;
+                var installed = framework.TryGetProperty("installed", out var installedValue) ? installedValue.GetString() : null;
+                badges.Add($"框架 {latest}");
+                details.Add($"框架：本地 {installed}，最新 {latest}（上游钉住 5.6.0）");
+            }
+
+            if (badges.Count == 0)
             {
                 UpdateBadge.Visibility = Visibility.Collapsed;
                 return;
             }
-            var remote = resource.TryGetProperty("remote", out var sha) ? sha.GetString() : null;
-            var date = resource.TryGetProperty("remoteDate", out var day) ? day.GetString() : null;
-            UpdateText.Text = $"资源有更新 {date}";
-            UpdateBadge.Tag = remote;
+
+            UpdateText.Text = "有更新：" + string.Join(" · ", badges);
+            UpdateBadge.Tag = string.Join("\n", details);
             UpdateBadge.Visibility = Visibility.Visible;
         }
         catch (Exception)
@@ -111,12 +134,12 @@ public partial class MainWindow : Window
 
     private void OnUpdateClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        var remote = UpdateBadge.Tag as string ?? "";
+        var details = UpdateBadge.Tag as string ?? "";
         MessageBox.Show(
-            $"上游资源有新版本（{remote}）。\n\n" +
-            "自动下载将在下一版本接入；目前可在开发目录运行：\n" +
-            "python devtools/sync_repo.py --update\n\n" +
-            "更新后先跑 devtools/check_upstream.py，再重启 Lite。",
+            details + "\n\n" +
+            "资源更新：python devtools/sync_repo.py --update，再跑 devtools/check_upstream.py。\n" +
+            "框架更新：默认不自动，因为上游把 maafw 钉在 5.6.0；确认兼容后再手动升级。\n\n" +
+            "自动下载将在下一版本接入。",
             "MaaYuan Lite",
             MessageBoxButton.OK,
             MessageBoxImage.Information);

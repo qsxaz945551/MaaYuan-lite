@@ -18,6 +18,7 @@ from .source_manifest import find_manifest
 REPO = "syoius/MaaYuan"
 BRANCH = "v5"
 API = f"https://api.github.com/repos/{REPO}/commits?sha={BRANCH}&per_page=1"
+PYPI = "https://pypi.org/pypi/maafw/json"
 CACHE_HOURS = 6
 
 
@@ -38,6 +39,13 @@ def _fetch_remote_commit(timeout: float = 3.0) -> dict[str, str]:
         "sha": str(first.get("sha", "")),
         "date": str(first.get("commit", {}).get("committer", {}).get("date", ""))[:10],
     }
+
+
+def _fetch_pypi_version(timeout: float = 3.0) -> str:
+    request = urllib.request.Request(PYPI, headers={"User-Agent": "maayuan-lite"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        payload = json.load(response)
+    return str(payload.get("info", {}).get("version", ""))
 
 
 def _read_cache(path: Path) -> dict[str, Any] | None:
@@ -62,18 +70,32 @@ def check_updates(project_root: Path, force: bool = False, timeout: float = 3.0)
 
     remote: dict[str, str] | None = None
     error: str | None = None
+    framework_latest = ""
+    framework_error: str | None = None
     if fresh and cached:
         remote = cached.get("remote")
         error = cached.get("error")
+        framework_latest = str(cached.get("frameworkLatest") or "")
+        framework_error = cached.get("frameworkError")
     else:
         try:
             remote = _fetch_remote_commit(timeout)
         except Exception as exc:  # noqa: BLE001 - offline is normal
             error = f"{type(exc).__name__}: {exc}"
+        try:
+            framework_latest = _fetch_pypi_version(timeout)
+        except Exception as exc:  # noqa: BLE001
+            framework_error = f"{type(exc).__name__}: {exc}"
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(
             json.dumps(
-                {"checkedAt": time.time(), "remote": remote, "error": error},
+                {
+                    "checkedAt": time.time(),
+                    "remote": remote,
+                    "error": error,
+                    "frameworkLatest": framework_latest,
+                    "frameworkError": framework_error,
+                },
                 ensure_ascii=False,
             ),
             encoding="utf-8",
@@ -103,7 +125,11 @@ def check_updates(project_root: Path, force: bool = False, timeout: float = 3.0)
         },
         "framework": {
             "installed": framework_installed,
+            "latest": framework_latest or None,
             "pinned": "5.6.0",
-            "available": False,
+            "available": bool(
+                framework_latest and framework_latest != framework_installed
+            ),
+            "error": framework_error,
         },
     }
