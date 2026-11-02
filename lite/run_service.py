@@ -385,6 +385,12 @@ class RunService:
         aborted = False
         try:
             session.start()
+            if self._warn_if_landscape(session):
+                with self._lock:
+                    self._status = "error"
+                    self._single["status"] = "failed"
+                self._log("已中止：改正模拟器分辨率后重新开始。", "error")
+                return
             for index, job in enumerate(jobs):
                 if self._cancel.is_set():
                     break
@@ -681,7 +687,7 @@ class RunService:
 
         return outcome
 
-    def _warn_if_landscape(self, session: LiteSession | None = None) -> None:
+    def _warn_if_landscape(self, session: LiteSession | None = None) -> bool:
         """Upstream ROIs assume a portrait 720x1280 screen.
 
         A landscape emulator makes every recognition miss while the framework
@@ -693,18 +699,19 @@ class RunService:
             try:
                 session.capture_png(path)
             except Exception:  # noqa: BLE001 - a missing screenshot is not fatal
-                return
+                return False
         size = _png_size(path)
         if size is None:
-            return
+            return False
         width, height = size
         if width <= height:
-            return
+            return False
         self._log(
             f"模拟器当前是横屏 {width}x{height}，资源按竖屏 720x1280 制作，"
             f"识别会全部失败。请把模拟器分辨率改为 720x1280 并重启后再运行。",
             "error",
         )
+        return True
 
     def _check_connection(self, previous_status: str = "idle") -> None:
         session = self._make_session()
@@ -787,7 +794,12 @@ class RunService:
             self._log("正在连接模拟器并启动 Agent……")
             session.start()
             self._log("连接成功，开始执行日常链。")
-            self._warn_if_landscape(session)
+            if self._warn_if_landscape(session):
+                with self._lock:
+                    self._status = "error"
+                    self._summary = {"error": "屏幕方向不对（横屏）"}
+                self._log("已中止：改正模拟器分辨率后重新开始日常。", "error")
+                return
 
             for index, item in enumerate(plan["tasks"]):
                 if self._cancel.is_set():
