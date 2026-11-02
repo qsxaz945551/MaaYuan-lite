@@ -199,6 +199,7 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 | D8 合并两套执行循环 | ✅ | 抽出 `_execute_job`（回调设置 + 死循环护栏 + `run_task` + 归类，39 行）与 `_finalize_run`（终止状态判定，21 行），daily 与 sequence 共用；`_run_daily` 206→179 行、`_run_sequence` 85→74 行 |
 | D4 状态写入加锁 | ✅ | 新增 `_update_task(index, **fields)` 与 `_update_run(...)`；任务的状态/耗时/尝试次数一次写入，`snapshot()` 不再读到「已完成但耗时还是 0」的中间态 |
 | D5 原生对象释放   | ✅  | `stop()` 显式 `post_close` + 置空，不再靠 GC                                             |
+| D21 续跑校验 | ✅ | 续跑前比对 `_tasks` 与 `plan` 的长度、逐项名称、资源里是否存在；对不上就重新开始整条日常并说明原因 |
 
 ### 3.5 M4 WPF 客户端
 
@@ -337,7 +338,7 @@ MaaYuan-Lite/
 │  ├─ guards.py               36  死循环护栏
 │  ├─ round_progress.py       35  循环任务计数
 │  └─ version.py               8  版本号
-├─ lite/tests/              1449 行 / 16 个文件 / 85 项用例
+├─ lite/tests/              1608 行 / 17 个文件 / 100 项用例
 ├─ desktop/                 1654 行 C# / 17 个文件
 ├─ devtools/                13 个脚本：run_tests / build_release / upgrade / sync_repo /
 │                                    check_upstream / audit_runtime / smoke_update / proc_tree …
@@ -439,7 +440,7 @@ Lite 的「轻」来自把界面交给系统已有浏览器；WPF 之后不再�
 ### 6.4 测试
 
 ```
-python devtools/run_tests.py      85 项，约 3.5 秒
+python devtools/run_tests.py      100 项，约 3.5 秒
 ```
 
 覆盖：设置迁移、选项树、日常计划、调度归类、更新执行器/门禁/下载器、自检、孤儿清理、ANR 识别、方向诊断。
@@ -472,7 +473,6 @@ python devtools/run_tests.py      85 项，约 3.5 秒
 | D11 | 用 entry 作任务主键，替代 emoji 名 | 上游改字不再静默失效 |
 | D12 | `apply_scope.merge_dict` 与 `task_overrides.merge_pipeline` 合一 | 行为一致 |
 | D13 | `save_settings` 加锁或原子写 | 并发丢设置 |
-| D21 | 续跑前校验 `_tasks` 与 `plan` 长度/名称一致 | 防错位 |
 | O2 | adb `device_ready()` 结果缓存 3 秒 | 每任务少一次子进程 |
 | O3 | `/api/screenshot` 加 ETag | 省读盘 |
 | O4 | 按引用裁剪未用任务图片 | 估减 20–30 MB |
@@ -514,7 +514,7 @@ python devtools/run_tests.py      85 项，约 3.5 秒
 
 ```bash
 # 开发
-python devtools/run_tests.py                 # 85 项测试
+python devtools/run_tests.py                 # 100 项测试
 python app.py --selftest                     # 10 项环境自检
 python app.py --no-browser --port 8790       # 只起服务
 

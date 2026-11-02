@@ -51,7 +51,11 @@ class LiteSession:
         resource_path: Optional[Path] = None,
         python_executable: Optional[Path] = None,
         agent_root: Optional[Path] = None,
+        logger: Any = None,
     ) -> None:
+        # Injected so a callback failure can be reported into the run log
+        # instead of vanishing; the session has no logger of its own.
+        self._logger = logger
         self.project_root = project_root.resolve()
         self.maa_root = maa_root.resolve()
         self.adb_path = adb_path.resolve()
@@ -477,14 +481,23 @@ class LiteSession:
         """Watch node starts (used by the stuck-loop guard)."""
         self._node_start_callback = callback
 
+    def _note(self, message: str, level: str = "warn") -> None:
+        if self._logger is not None:
+            try:
+                self._logger(message, level)
+            except Exception:  # noqa: BLE001 - logging must never break a run
+                pass
+
     def _handle_node(self, name: str) -> None:
         callback = self._node_callback
         if callback is None:
             return
         try:
             callback(name)
-        except Exception:
-            pass
+        except Exception as error:  # noqa: BLE001
+            # Swallowing this loses round counts silently, which looks like the
+            # loop stopped making progress.
+            self._note(f"节点完成回调出错（{name}）：{error}")
 
     def _handle_node_start(self, name: str) -> None:
         callback = self._node_start_callback
@@ -492,8 +505,8 @@ class LiteSession:
             return
         try:
             callback(name)
-        except Exception:
-            pass
+        except Exception as error:  # noqa: BLE001
+            self._note(f"节点开始回调出错（{name}）：{error}")
 
     def device_ready(self) -> bool:
         """Cheap ADB check used before each task."""

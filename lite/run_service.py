@@ -603,6 +603,7 @@ class RunService:
 
     def _make_session(self) -> LiteSession:
         return LiteSession(
+            logger=self._log,
             project_root=self.project_root,
             maa_root=Path(self.config["runtime_root"]),
             adb_path=Path(self.config["adb_path"]),
@@ -786,8 +787,8 @@ class RunService:
                 return
             if self._recover_unknown_screen(session):
                 self._log(f"「{name}」失败后已退出未知界面，后续任务继续。", "warn")
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as error:  # noqa: BLE001 - recovery must never abort a run
+            self._log(f"「{name}」的失败恢复流程出错（不影响后续任务）：{error}", "warn")
 
     def _classify_result(
         self,
