@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private int _cursor;
     private bool _optionsLoaded;
     private bool _loadingSettings;
+    private bool _downloadRunning;
 
     private static readonly (string Value, string Label)[] StartupOptions =
     {
@@ -79,7 +80,18 @@ public partial class MainWindow : Window
         }
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _timer.Tick += async (_, _) => await RefreshAsync();
+        var tick = 0;
+        _timer.Tick += async (_, _) =>
+        {
+            await RefreshAsync();
+            tick++;
+            // While a download runs the badge doubles as a progress bar; the
+            // rest of the time a 30 second poll is plenty.
+            if (_downloadRunning || tick % 15 == 0)
+            {
+                await CheckUpdatesAsync();
+            }
+        };
         _timer.Start();
 
         await WarnIfUnhealthyAsync();
@@ -97,13 +109,51 @@ public partial class MainWindow : Window
 
             var badges = new List<string>();
             var details = new List<string>();
+            var downloadRunning = false;
+
+            if (doc.RootElement.TryGetProperty("download", out var download))
+            {
+                var state = download.TryGetProperty("state", out var value) ? value.GetString() : null;
+                var message = download.TryGetProperty("message", out var text) ? text.GetString() : null;
+                var done = download.TryGetProperty("doneBytes", out var doneValue) ? doneValue.GetDouble() : 0;
+                var total = download.TryGetProperty("totalBytes", out var totalValue) ? totalValue.GetDouble() : 0;
+                var error = download.TryGetProperty("error", out var errorValue) ? errorValue.GetString() : null;
+
+                if (state == "running")
+                {
+                    downloadRunning = true;
+                    _downloadRunning = true;
+                    var percent = total > 0 ? $" {done / total * 100:0}%" : "";
+                    var size = total > 0 ? $"（{done / 1048576:0}/{total / 1048576:0} MB）" : "";
+                    UpdateText.Text = $"正在下载资源{percent}{size}";
+                    UpdateBadge.Tag = $"{message}\n{size}\n\n下载在后台进行，不影响当前任务。";
+                    UpdateBadge.Background = (Brush)new BrushConverter().ConvertFrom("#DBEAFE")!;
+                    UpdateBadge.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                if (state == "failed" && !string.IsNullOrEmpty(error))
+                {
+                    details.Add($"上次更新失败：{error}");
+                }
+            }
+
+            var staged = doc.RootElement.TryGetProperty("staged", out var stagedFlag) && stagedFlag.GetBoolean();
+            if (staged)
+            {
+                badges.Add("资源待生效");
+                details.Add("新的资源已经下载并校验完成，关闭 Lite 再打开即生效。");
+            }
 
             if (doc.RootElement.TryGetProperty("resource", out var resource) &&
                 resource.TryGetProperty("available", out var resourceFlag) && resourceFlag.GetBoolean())
             {
                 var remote = resource.TryGetProperty("remote", out var sha) ? sha.GetString() : null;
                 var date = resource.TryGetProperty("remoteDate", out var day) ? day.GetString() : null;
-                badges.Add("资源");
+                if (!staged)
+                {
+                    badges.Add("资源");
+                }
                 details.Add($"资源：上游 {remote}（{date}）");
             }
 
@@ -119,10 +169,13 @@ public partial class MainWindow : Window
             if (badges.Count == 0)
             {
                 UpdateBadge.Visibility = Visibility.Collapsed;
+                _downloadRunning = false;
                 return;
             }
 
+            _downloadRunning = downloadRunning;
             UpdateText.Text = "有更新：" + string.Join(" · ", badges);
+            UpdateBadge.Background = (Brush)new BrushConverter().ConvertFrom("#FEF3C7")!;
             UpdateBadge.Tag = string.Join("\n", details);
             UpdateBadge.Visibility = Visibility.Visible;
         }
@@ -132,17 +185,69 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnUpdateClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private async void OnUpdateClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         var details = UpdateBadge.Tag as string ?? "";
-        MessageBox.Show(
-            details + "\n\n" +
-            "资源更新：python devtools/sync_repo.py --update，再跑 devtools/check_upstream.py。\n" +
-            "框架更新：默认不自动，因为上游把 maafw 钉在 5.6.0；确认兼容后再手动升级。\n\n" +
-            "自动下载将在下一版本接入。",
+        if (UpdateText.Text.StartsWith("正在下载资源"))
+        {
+            MessageBox.Show(
+                details + "\n\n下载完成后会自动校验，下次启动 Lite 生效。",
+                "MaaYuan Lite",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (UpdateText.Text.Contains("待生效"))
+        {
+            var restart = MessageBox.Show(
+                details + "\n\n现在就重启 Lite 让它生效吗？",
+                "MaaYuan Lite",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (restart == MessageBoxResult.Yes)
+            {
+                RestartApplication();
+            }
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            details + "\n\n现在后台下载资源吗？（不影响正在运行的任务）",
             "MaaYuan Lite",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var started = await _service.PostAsync("/api/updates/download", new { });
+        if (!started)
+        {
+            MessageBox.Show(
+                "下载没有启动，可能是已有任务在进行。稍后再试。",
+                "MaaYuan Lite",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        await CheckUpdatesAsync();
+    }
+
+    private static void RestartApplication()
+    {
+        var path = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = path,
+            UseShellExecute = true,
+            WorkingDirectory = AppContext.BaseDirectory,
+        });
+        Application.Current.Shutdown();
     }
 
     /// <summary>
