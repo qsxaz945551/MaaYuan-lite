@@ -19,6 +19,7 @@ public sealed class LiteService : IDisposable
     public Uri? BaseUri { get; private set; }
     public string Root { get; private set; } = "";
     public string? LastError { get; private set; }
+    public string? LastMessage { get; private set; }
 
     public async Task<bool> StartAsync(CancellationToken token = default)
     {
@@ -128,8 +129,12 @@ public sealed class LiteService : IDisposable
         }
     }
 
+    public string? LastErrorCode { get; private set; }
+
     public async Task<bool> PostAsync(string path, object? body = null, CancellationToken token = default)
     {
+        LastErrorCode = null;
+        LastMessage = null;
         if (BaseUri is null)
         {
             return false;
@@ -138,7 +143,29 @@ public sealed class LiteService : IDisposable
         {
             using var content = body is null ? null : JsonContent.Create(body);
             using var response = await _client.PostAsync(new Uri(BaseUri, path), content, token);
-            return response.IsSuccessStatusCode;
+            if (response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+            // Errors carry a stable code plus a message written for the user.
+            var text = await response.Content.ReadAsStringAsync(token);
+            try
+            {
+                using var doc = JsonDocument.Parse(text);
+                if (doc.RootElement.TryGetProperty("code", out var code))
+                {
+                    LastErrorCode = code.GetString();
+                }
+                if (doc.RootElement.TryGetProperty("error", out var message))
+                {
+                    LastMessage = message.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+                LastMessage = text;
+            }
+            return false;
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
         {

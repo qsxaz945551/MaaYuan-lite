@@ -312,6 +312,14 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
             self.end_headers()
             self.wfile.write(body)
 
+        def _error(self, code: str, message: str, status: HTTPStatus) -> None:
+            """Stable machine code + human message.
+
+            ``error`` keeps its string form so the existing HTML console keeps
+            working; ``code`` is what the WPF client branches on.
+            """
+            self._json({"ok": False, "error": message, "code": code}, status)
+
         def _sse(self, service: RunService) -> None:
             """Server-sent events: status + new log lines, one event per second.
 
@@ -396,7 +404,7 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     )
                     self._json(plan)
                 except Exception as error:
-                    self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+                    self._error("PLAN_FAILED", str(error), HTTPStatus.BAD_REQUEST)
                 return
             if parsed.path == "/api/events":
                 self._sse(service)
@@ -468,7 +476,7 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                         }
                     )
                 except Exception as error:
-                    self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+                    self._error("OPTIONS_FAILED", str(error), HTTPStatus.BAD_REQUEST)
                 return
             if parsed.path == "/api/screenshot":
                 if service._last_screenshot.is_file():
@@ -480,9 +488,9 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     self.end_headers()
                     self.wfile.write(body)
                 else:
-                    self._json({"error": "no screenshot"}, HTTPStatus.NOT_FOUND)
+                    self._error("NO_SCREENSHOT", "还没有截图", HTTPStatus.NOT_FOUND)
                 return
-            self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+            self._error("NOT_FOUND", "接口不存在", HTTPStatus.NOT_FOUND)
 
         def do_POST(self):
             parsed = urlparse(self.path)
@@ -519,12 +527,12 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     try:
                         started = service.run_sequence(names)
                     except ValueError as error:
-                        self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+                        self._error("TASK_UNKNOWN", str(error), HTTPStatus.BAD_REQUEST)
                         return
-                    self._json(
-                        {"ok": started},
-                        HTTPStatus.OK if started else HTTPStatus.CONFLICT,
-                    )
+                    if not started:
+                        self._error("BUSY", "已有任务在运行", HTTPStatus.CONFLICT)
+                        return
+                    self._json({"ok": True})
                     return
                 if parsed.path == "/api/start":
                     dungeon_value = payload.get("dungeon")
@@ -544,7 +552,10 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                                 "last_dungeon": bool(dungeon_value),
                             }
                         )
-                    self._json({"ok": started}, HTTPStatus.OK if started else HTTPStatus.CONFLICT)
+                    if not started:
+                        self._error("BUSY", "已有任务在运行", HTTPStatus.CONFLICT)
+                        return
+                    self._json({"ok": True})
                     return
                 if parsed.path == "/api/updates/download":
                     from lite.downloader import start as start_download
@@ -556,19 +567,14 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     from lite.update_applier import apply_staged
 
                     if not _bundle_owns_resources(service.config):
-                        self._json(
-                            {
-                                "ok": False,
-                                "error": "当前资源来自开发目录，自动切换只对发布包生效",
-                            },
+                        self._error(
+                            "DEV_MANAGED",
+                            "当前资源来自开发目录，自动切换只对发布包生效",
                             HTTPStatus.CONFLICT,
                         )
                         return
                     if service.snapshot().get("busy"):
-                        self._json(
-                            {"ok": False, "error": "任务运行中，停止后再切换资源"},
-                            HTTPStatus.CONFLICT,
-                        )
+                        self._error("BUSY", "任务运行中，停止后再切换资源", HTTPStatus.CONFLICT)
                         return
                     result = apply_staged(ROOT, str(service.config.get("interface_source", "")))
                     if result.get("ok"):
@@ -580,9 +586,12 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                             result = {
                                 "ok": False,
                                 "error": f"新资源无法生成 interface，已回滚：{detail}",
+                                "code": "APPLY_REJECTED",
                                 "rolledBack": rollback(ROOT),
                             }
                             _rebuild_interface()
+                    if not result.get("ok"):
+                        result.setdefault("code", "APPLY_FAILED")
                     self._json(
                         result, HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
                     )
@@ -591,25 +600,26 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     from lite.update_applier import rollback
 
                     if not _bundle_owns_resources(service.config):
-                        self._json(
-                            {"ok": False, "error": "当前资源来自开发目录，无需回滚"},
-                            HTTPStatus.CONFLICT,
+                        self._error(
+                            "DEV_MANAGED", "当前资源来自开发目录，无需回滚", HTTPStatus.CONFLICT
                         )
                         return
                     if service.snapshot().get("busy"):
-                        self._json(
-                            {"ok": False, "error": "任务运行中，停止后再回滚"},
-                            HTTPStatus.CONFLICT,
-                        )
+                        self._error("BUSY", "任务运行中，停止后再回滚", HTTPStatus.CONFLICT)
                         return
                     ok = rollback(ROOT)
-                    if ok:
-                        _rebuild_interface()
-                    self._json({"ok": ok}, HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST)
+                    if not ok:
+                        self._error("ROLLBACK_FAILED", "没有可回滚的备份", HTTPStatus.BAD_REQUEST)
+                        return
+                    _rebuild_interface()
+                    self._json({"ok": True})
                     return
                 if parsed.path == "/api/check":
                     started = service.check_connection()
-                    self._json({"ok": started}, HTTPStatus.OK if started else HTTPStatus.CONFLICT)
+                    if not started:
+                        self._error("BUSY", "已有任务在运行，无法检查连接", HTTPStatus.CONFLICT)
+                        return
+                    self._json({"ok": True})
                     return
                 if parsed.path == "/api/stop":
                     service.stop()
@@ -619,9 +629,11 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     self._json({"ok": True})
                     threading.Thread(target=server_ref[0].shutdown, daemon=True).start()
                     return
-                self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+                self._error("NOT_FOUND", "接口不存在", HTTPStatus.NOT_FOUND)
+            except json.JSONDecodeError as error:
+                self._error("BAD_JSON", f"请求体不是合法 JSON：{error}", HTTPStatus.BAD_REQUEST)
             except Exception as error:
-                self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+                self._error("BAD_REQUEST", str(error), HTTPStatus.BAD_REQUEST)
 
     return Handler
 

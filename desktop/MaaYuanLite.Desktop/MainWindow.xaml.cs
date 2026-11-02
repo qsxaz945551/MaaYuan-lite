@@ -226,7 +226,7 @@ public partial class MainWindow : Window
         if (!started)
         {
             MessageBox.Show(
-                "下载没有启动，可能是已有任务在进行。稍后再试。",
+                _service.LastMessage ?? "下载没有启动，稍后再试。",
                 "MaaYuan Lite",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -667,13 +667,13 @@ public partial class MainWindow : Window
     private async void OnCheck(object sender, RoutedEventArgs e)
     {
         var ok = await _service.PostAsync("/api/check");
-        StatusText.Text = ok ? "检查中……" : "检查请求失败";
+        StatusText.Text = ok ? "检查中……" : _service.LastMessage ?? "检查请求失败";
     }
 
     private async void OnStart(object sender, RoutedEventArgs e)
     {
         var ok = await _service.PostAsync("/api/start", new { training = "修为", dungeon = false });
-        StatusText.Text = ok ? "已开始" : "开始失败（可能已有任务在运行）";
+        StatusText.Text = ok ? "已开始" : _service.LastMessage ?? "开始失败";
     }
 
     private async void OnStop(object sender, RoutedEventArgs e)

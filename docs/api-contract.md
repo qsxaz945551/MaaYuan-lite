@@ -18,7 +18,7 @@
 | 认证 | 无（仅本机回环） |
 | 时间格式 | 本地时间字符串 `YYYY-MM-DD HH:MM:SS`，空字符串表示未发生 |
 | 日志游标 | 单调递增整数 `logSeq`，跨请求有效，进程重启后归零 |
-| 错误响应 | `{"error": "中文描述"}` + 4xx/5xx；错误码见第七节（待迁移） |
+| 错误响应 | `{"ok": false, "error": "中文描述", "code": "MACHINE_CODE"}` + 4xx/5xx；`code` 见第七节 |
 
 ---
 
@@ -168,18 +168,34 @@ data: {"status":"running","currentTask":"🏯 据点日常","summary":{},"logSeq
 
 ## 七、错误
 
-当前所有失败统一返回 `{"error": "中文句子"}`，HTTP 400 或 409。客户端只能按状态码分支。
+所有失败响应统一为：
 
-计划迁移（未实施）：`{"code": "TASK_UNKNOWN", "message": "..."}`，`code` 为稳定标识：
+```json
+{"ok": false, "error": "中文描述，可直接展示", "code": "TASK_UNKNOWN"}
+```
+
+`error` 保留文本形式（HTML 控制台仍在读），`code` 是稳定标识，客户端按它分支。
 
 | code | HTTP | 触发 |
 |---|---|---|
-| `BAD_JSON` | 400 | 请求体不是 JSON |
+| `BAD_JSON` | 400 | 请求体不是合法 JSON |
+| `BAD_REQUEST` | 400 | 参数缺失或类型不对 |
 | `TASK_UNKNOWN` | 400 | `run-task` 的任务名不存在 |
-| `GROUP_UNKNOWN` | 400 | 选项组不属于该任务 |
-| `INDEX_OUT_OF_RANGE` | 400 | 选项索引越界 |
-| `BUSY` | 409 | 已有运行中的任务 |
-| `NO_PLAN` | 400 | 续跑时没有可补跑项 |
+| `PLAN_FAILED` | 400 | 日常计划生成失败（配置损坏） |
+| `OPTIONS_FAILED` | 400 | 选项树读取或写回失败 |
+| `ROLLBACK_FAILED` | 400 | 没有可回滚的资源备份 |
+| `APPLY_FAILED` | 400 | 资源切换在文件系统层失败（已自动回滚） |
+| `APPLY_REJECTED` | 400 | 新资源通过门禁但生成不了 interface（已自动回滚） |
+| `BUSY` | 409 | 已有运行中的任务，或正在检查连接 |
+| `DEV_MANAGED` | 409 | 资源来自 `vendor/`，自动更新只对发布包生效 |
+| `NO_SCREENSHOT` | 404 | 还没有截图可供查看 |
+| `NOT_FOUND` | 404 | 接口不存在 |
+
+规则：
+
+- 新增错误一律先加 `code`，不新增字符串匹配分支。
+- 4xx 表示「客户端可以改请求解决」，5xx 表示「本机环境问题」，目前没有 5xx 出口，环境问题通过 `/api/health` 表达。
+- 资源更新失败不抛 5xx：`APPLY_*` 都是 400，且响应里带 `rolledBack` 说明是否已恢复。
 
 ---
 
