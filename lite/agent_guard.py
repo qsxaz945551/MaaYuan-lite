@@ -137,7 +137,11 @@ def rotate_logs(project_root: Path) -> dict[str, int]:
     """Keep the newest N files in the log/debug/cache folders."""
     removed = {"agentLogs": 0, "debug": 0, "cache": 0}
     removed["agentLogs"] = _trim(project_root / "runtime" / "logs", LOG_KEEP)
-    removed["debug"] = _trim(project_root / "debug" / "on_error", DEBUG_KEEP)
+    # Error frames follow the framework log dir (runtime/debug/on_error). The
+    # project-root debug/on_error path is what older builds wrote; trim it too
+    # so an upgraded install does not keep a stale folder forever.
+    removed["debug"] = _trim(project_root / "runtime" / "debug" / "on_error", DEBUG_KEEP)
+    removed["debug"] += _trim(project_root / "debug" / "on_error", DEBUG_KEEP)
     removed["cache"] = _trim(project_root / "runtime" / "cache", CACHE_KEEP)
     return removed
 
@@ -165,7 +169,7 @@ def summarize(project_root: Path) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for name, folder in (
         ("agentLogs", project_root / "runtime" / "logs"),
-        ("debug", project_root / "debug"),
+        ("debug", project_root / "runtime" / "debug"),
         ("cache", project_root / "runtime" / "cache"),
     ):
         if folder.is_dir():

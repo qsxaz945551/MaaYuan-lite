@@ -215,7 +215,7 @@ ldconsole.exe modify --index 0 --resolution 720,1280,320
 - 选中的任务记在浏览器本地，刷新后保持；也可以直接访问 `#task=任务名` 定位。
 
 ### 日志与实例管理
-- `debug/maa.log` 超过 20 MiB 时归档为 `debug/maa-<时间戳>.log`，只保留最近 3 份。- `runtime/logs/agent-*.log` 只保留最近 60 个。
+- `runtime/debug/maa.log`（框架日志，位置由 `Tasker.set_log_dir` 指定，不再写项目根）。- `runtime/logs/agent-*.log` 只保留最近 60 个。
 - 控制台禁止端口复用：重复双击 `start-lite.bat` 时第二个实例会自动换端口，不会和旧实例争抢 8765 导致状态错乱。
 - 日志里有两类“看起来像错误”的固定输出，均属正常：
   - `PluginMgr ... Failed to load library .../native/plugins`：MaaFramework 找不到可选插件目录，不影响识别与点击。
@@ -228,7 +228,7 @@ ldconsole.exe modify --index 0 --resolution 720,1280,320
 - **6-24 体力耗尽**：体力用完时游戏弹出「用道具回复 / 用日金市回复」对话框，上游只认「体力回复」，而且只在点击「进入关卡」后检查。现在把文字匹配扩到三种，并在「开始行动」「极速版6-24」之后补一次检查，命中即 `StopTask`。若任务仍以识别失败收场，运行器会探测该对话框，识别到就记为「体力耗尽，已结束」而不是失败。
 - **超时与失败分开**：任务达到时间上限时标记为「超时」（琥珀色徽章），仍计入失败数，但可以「继续未完成」。邺城已去掉上限，不会再撞这条线。
 - **循环任务计数**：邺城、6-24、鸢报四合一这类会反复执行的任务，每完成一轮在日志里追加一行「第 N 轮完成（单位）」。单位分别是攻取结算、战斗、鸢报类别，标记节点写在 `lite/round_progress.py`。
-- **错误截图**：任务失败或超时时保存一帧到 `runtime/failures/<时间>-<任务>.png`，并在日志里给出路径；同时开启 MaaFramework 的 `save_on_error`，识别失败帧落在 `debug/on_error/`，只保留最近 40 张。
+- **错误截图**：任务失败或超时时保存一帧到 `runtime/failures/<时间>-<任务>.png`，并在日志里给出路径；同时开启 MaaFramework 的 `save_on_error`，识别失败帧落在 `runtime/debug/on_error/`，只保留最近 40 张。
 
 ### 稳定性兜底（阶段 1）
 
@@ -284,7 +284,7 @@ ldconsole.exe modify --index 0 --resolution 720,1280,320
 | 工作集 | 均值 142 MiB / 峰值 719 MiB |
 | 提交内存 | 均值 1177 MiB / 峰值 1387 MiB |
 | CPU | 412 s / 685 s ≈ 60% 单核 |
-| 错误截图 | 0 张（`debug/on_error` 无本次记录） |
+| 错误截图 | 0 张（`runtime/debug/on_error` 无本次记录） |
 
 口径提醒：
 

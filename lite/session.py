@@ -252,8 +252,15 @@ class LiteSession:
                 raise SessionError("Maa resource loading failed")
 
             self._tasker = Tasker()
-            # Keep a screenshot of the failing recognition in debug/on_error;
-            # otherwise a failure only leaves a node name in the log.
+            # Keep a screenshot of the failing recognition, and keep it inside
+            # runtime/: the framework defaults the log dir to the working
+            # directory, which littered the project root with on_error/.
+            debug_dir = self.project_root / "runtime" / "debug"
+            try:
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                Tasker.set_log_dir(str(debug_dir))
+            except Exception:  # noqa: BLE001 - a missing log dir must not block
+                pass
             self._tasker.set_save_on_error(True)
             if not self._tasker.bind(self._resource, self._controller):
                 raise SessionError("Tasker failed to bind resource/controller")
