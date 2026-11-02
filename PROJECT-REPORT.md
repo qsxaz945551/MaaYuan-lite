@@ -200,6 +200,7 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 | D4 状态写入加锁 | ✅ | 新增 `_update_task(index, **fields)` 与 `_update_run(...)`；任务的状态/耗时/尝试次数一次写入，`snapshot()` 不再读到「已完成但耗时还是 0」的中间态 |
 | D5 原生对象释放   | ✅  | `stop()` 显式 `post_close` + 置空，不再靠 GC                                             |
 | D21 续跑校验 | ✅ | 续跑前比对 `_tasks` 与 `plan` 的长度、逐项名称、资源里是否存在；对不上就重新开始整条日常并说明原因 |
+| D10 局部 | ✅ | `_handle_node` / `_handle_node_start` 的异常经注入 logger 进运行日志（原本吞掉会丢轮次计数）；`_recover_after_failure` 也改为记 `warn` |
 
 ### 3.5 M4 WPF 客户端
 
@@ -317,7 +318,7 @@ pipeline 节点数、interface 任务数、日常链任务名、`pipeline_fixes`
 ```
 MaaYuan-Lite/
 ├─ app.py                    730 行  HTTP 服务、启动编排、进程守卫、更新接线
-├─ lite/                    4256 行 / 21 个模块
+├─ lite/                    4360 行 / 21 个模块
 │  ├─ run_service.py        1050  调度核心：任务循环、结果归类、兜底恢复、日志
 │  ├─ session.py             729  MaaFramework 会话：Resource/Controller/Tasker/Agent 生命周期
 │  ├─ downloader.py          419  资源下载与暂存
@@ -338,7 +339,7 @@ MaaYuan-Lite/
 │  ├─ guards.py               36  死循环护栏
 │  ├─ round_progress.py       35  循环任务计数
 │  └─ version.py               8  版本号
-├─ lite/tests/              1608 行 / 17 个文件 / 100 项用例
+├─ lite/tests/              1685 行 / 18 个文件 / 105 项用例
 ├─ desktop/                 1654 行 C# / 17 个文件
 ├─ devtools/                13 个脚本：run_tests / build_release / upgrade / sync_repo /
 │                                    check_upstream / audit_runtime / smoke_update / proc_tree …
@@ -440,7 +441,7 @@ Lite 的「轻」来自把界面交给系统已有浏览器；WPF 之后不再�
 ### 6.4 测试
 
 ```
-python devtools/run_tests.py      100 项，约 3.5 秒
+python devtools/run_tests.py      105 项，约 3.5 秒
 ```
 
 覆盖：设置迁移、选项树、日常计划、调度归类、更新执行器/门禁/下载器、自检、孤儿清理、ANR 识别、方向诊断。
@@ -469,7 +470,6 @@ python devtools/run_tests.py      100 项，约 3.5 秒
 | ID | 内容 | 收益 |
 |---|---|---|
 | D9 | 超时语义收敛到一处（现在分散在 `DEFAULT_TIMEOUTS` / `daily-profile.timeout_sec` / `run_task(timeout_sec)`） | 排查成本 |
-| D10 | 14 处 `except Exception: pass` 改成至少 `_log(warn)` | 故障不再静默 |
 | D11 | 用 entry 作任务主键，替代 emoji 名 | 上游改字不再静默失效 |
 | D12 | `apply_scope.merge_dict` 与 `task_overrides.merge_pipeline` 合一 | 行为一致 |
 | D13 | `save_settings` 加锁或原子写 | 并发丢设置 |
@@ -514,7 +514,7 @@ python devtools/run_tests.py      100 项，约 3.5 秒
 
 ```bash
 # 开发
-python devtools/run_tests.py                 # 100 项测试
+python devtools/run_tests.py                 # 105 项测试
 python app.py --selftest                     # 10 项环境自检
 python app.py --no-browser --port 8790       # 只起服务
 
