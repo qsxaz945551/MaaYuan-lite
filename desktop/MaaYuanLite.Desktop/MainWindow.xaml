@@ -20,6 +20,11 @@
                     <Border Background="#F3F4F6" CornerRadius="10" Padding="10,3" Margin="12,0,0,0">
                         <TextBlock x:Name="StatusText" Text="未连接" Foreground="#6B7280"/>
                     </Border>
+                    <Border x:Name="UpdateBadge" Background="#FEF3C7" CornerRadius="10" Padding="10,3"
+                            Margin="8,0,0,0" Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="OnUpdateClick"
+                            ToolTip="点击查看可用的更新">
+                        <TextBlock x:Name="UpdateText" Foreground="#92400E" FontSize="12"/>
+                    </Border>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <TextBlock Text="启动时" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" Margin="0,0,4,0"/>

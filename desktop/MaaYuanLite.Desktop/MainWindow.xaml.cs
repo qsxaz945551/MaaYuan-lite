@@ -79,6 +79,47 @@ public partial class MainWindow : Window
         _timer.Start();
 
         await WarnIfUnhealthyAsync();
+        _ = CheckUpdatesAsync();
+    }
+
+    private async Task CheckUpdatesAsync()
+    {
+        try
+        {
+            using var doc = await _service.GetAsync("/api/updates");
+            if (doc is null || !doc.RootElement.TryGetProperty("resource", out var resource))
+            {
+                return;
+            }
+            var available = resource.TryGetProperty("available", out var flag) && flag.GetBoolean();
+            if (!available)
+            {
+                UpdateBadge.Visibility = Visibility.Collapsed;
+                return;
+            }
+            var remote = resource.TryGetProperty("remote", out var sha) ? sha.GetString() : null;
+            var date = resource.TryGetProperty("remoteDate", out var day) ? day.GetString() : null;
+            UpdateText.Text = $"资源有更新 {date}";
+            UpdateBadge.Tag = remote;
+            UpdateBadge.Visibility = Visibility.Visible;
+        }
+        catch (Exception)
+        {
+            // Update checks are best-effort; never surface them as a startup error.
+        }
+    }
+
+    private void OnUpdateClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var remote = UpdateBadge.Tag as string ?? "";
+        MessageBox.Show(
+            $"上游资源有新版本（{remote}）。\n\n" +
+            "自动下载将在下一版本接入；目前可在开发目录运行：\n" +
+            "python devtools/sync_repo.py --update\n\n" +
+            "更新后先跑 devtools/check_upstream.py，再重启 Lite。",
+            "MaaYuan Lite",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     /// <summary>
