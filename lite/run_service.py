@@ -21,6 +21,13 @@ from .task_options_service import load_inputs
 from .task_overrides import build_task_override, load_options_snapshot
 
 
+# The system ANR dialog, measured on a 720x1280 capture: title around y=478,
+# "等待" at (303, 688). ROIs elsewhere in the pipeline use the same baseline.
+ANR_KEYWORDS = ("没有响应", "无响应", "没有回應")
+ANR_ROI = (0, 400, 720, 300)
+ANR_WAIT_POINT = (303, 688)
+ANR_WAIT_SECONDS = 20.0
+
 DEFAULT_TIMEOUTS = {
     "🚀 启动游戏": 300,
     "💰 领月卡福利": 1200,
@@ -585,6 +592,43 @@ class RunService:
         except Exception as error:
             self._log(f"错误截图保存失败：{error}", "warn")
 
+    def _handle_anr(self, session: LiteSession) -> bool:
+        """Dismiss the system "app isn't responding" dialog by tapping 等待.
+
+        The dialog belongs to Android, not the game, so upstream's popup list
+        never matches it: the run spins on the startup task until timeout and
+        the log only shows failed recognitions. Only 等待 is tapped — 关闭应用
+        would drop the current run's progress, so it stays manual.
+        """
+        probe = getattr(session, "probe", None)
+        tap = getattr(session, "tap", None)
+        if probe is None or tap is None:
+            return False
+        try:
+            hit = probe(
+                [
+                    {
+                        "type": "OCR",
+                        "param": {
+                            "expected": list(ANR_KEYWORDS),
+                            "roi": list(ANR_ROI),
+                            "threshold": 0.8,
+                        },
+                    }
+                ],
+                timeout_ms=1500,
+            )
+        except Exception:  # noqa: BLE001 - a probe failure is not an ANR
+            return False
+        if not hit:
+            return False
+
+        self._log("检测到系统「无响应」弹窗，点“等待”让游戏继续……", "warn")
+        tap(*ANR_WAIT_POINT)
+        # The game usually needs a while to finish whatever blocked the UI.
+        time.sleep(ANR_WAIT_SECONDS)
+        return True
+
     def _recover_unknown_screen(self, session: LiteSession) -> bool:
         """Try to leave an unknown popup (new event banner, update notice).
 
@@ -621,6 +665,9 @@ class RunService:
 
     def _recover_after_failure(self, session: LiteSession, name: str) -> None:
         try:
+            if self._handle_anr(session):
+                self._log(f"「{name}」失败时游戏无响应，已点“等待”，后续任务继续。", "warn")
+                return
             if self._recover_unknown_screen(session):
                 self._log(f"「{name}」失败后已退出未知界面，后续任务继续。", "warn")
         except Exception:  # noqa: BLE001
