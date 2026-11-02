@@ -41,7 +41,31 @@ OPTION_LOCK = threading.Lock()
 
 def load_config() -> dict:
     with CONFIG_FILE.open("r", encoding="utf-8-sig") as handle:
-        return json.load(handle)
+        config = json.load(handle)
+    # Relative paths are resolved against the project root, not the current
+    # working directory: the bundle must behave the same when started from
+    # Explorer, a shortcut, or the WPF shell.
+    for key in (
+        "runtime_root",
+        "adb_path",
+        "resource_path",
+        "resource_root",
+        "agent_root",
+        "interface_source",
+    ):
+        value = str(config.get(key) or "").strip()
+        if not value:
+            continue
+        path = Path(value)
+        config[key] = str(path if path.is_absolute() else (ROOT / path).resolve())
+
+    from lite.adb_finder import find_adb
+
+    adb, source = find_adb(str(config.get("adb_path") or ""), ROOT)
+    if adb is not None:
+        config["adb_path"] = str(adb)
+        config["adb_source"] = source
+    return config
 
 
 def load_interface() -> dict:

@@ -1,6 +1,6 @@
 {
   "runtime_root": "runtime_env",
-  "adb_path": "D:/Apps Game/LDPlayer14/adb.exe",
+  "adb_path": "",
   "adb_serial": "emulator-5554",
   "resource_path": "assets/resource/base",
   "resource_root": "vendor/MaaYuan-src/assets/resource/base",

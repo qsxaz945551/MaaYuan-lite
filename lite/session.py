@@ -7,6 +7,7 @@ small and replaceable.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -81,7 +82,7 @@ class LiteSession:
         self._sink = None
         self._sink_id: Optional[int] = None
 
-        self.native_path = self.maa_root / "runtimes" / "win-x64" / "native"
+        self.native_path = self._find_native()
         self.agent_binary = self._find_agent_binary()
         self.log_dir = self.project_root / "runtime" / "logs"
 
@@ -89,16 +90,52 @@ class LiteSession:
     def started(self) -> bool:
         return self._started
 
+    def _find_native(self) -> Path:
+        """Locate the MaaFramework native libraries.
+
+        Order matters: a hand-placed ``native/`` wins, then the upstream-style
+        ``runtimes/win-x64/native``, then the wheel layout (``maa/bin``) that a
+        pip-installed ``maafw`` ships. The last one means the release does not
+        need a duplicated 65 MB copy.
+        """
+        candidates = [
+            self.maa_root / "native",
+            self.maa_root / "runtimes" / "win-x64" / "native",
+        ]
+        try:
+            spec = importlib.util.find_spec("maa")
+            for location in list(spec.submodule_search_locations or []) if spec else []:
+                candidates.append(Path(location) / "bin")
+        except (ImportError, ValueError):
+            pass
+
+        for path in candidates:
+            if (path / "MaaFramework.dll").is_file():
+                return path
+        raise SessionError(
+            "MaaFramework native directory not found; looked in: "
+            + ", ".join(str(path) for path in candidates)
+        )
+
     def _find_agent_binary(self) -> Path:
         candidates = [
             self.maa_root / "libs" / "MaaAgentBinary",
             self.maa_root / "MaaAgentBinary",
             self.maa_root / "python" / "Lib" / "site-packages" / "MaaAgentBinary",
         ]
+        try:
+            spec = importlib.util.find_spec("MaaAgentBinary")
+            for location in list(spec.submodule_search_locations or []) if spec else []:
+                candidates.append(Path(location))
+        except (ImportError, ValueError):
+            pass
         for candidate in candidates:
             if candidate.is_dir():
                 return candidate
-        raise SessionError("MaaAgentBinary directory not found")
+        raise SessionError(
+            "MaaAgentBinary directory not found; looked in: "
+            + ", ".join(str(path) for path in candidates)
+        )
 
     def _validate_assets(self) -> None:
         if not self.native_path.is_dir():
