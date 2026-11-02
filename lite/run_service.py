@@ -417,6 +417,103 @@ class RunService:
         self._thread.start()
         return True
 
+    def _update_task(self, index: int, **fields: Any) -> None:
+        """Write several task fields in one lock.
+
+        Writing status, duration and attempts separately let a snapshot land
+        between them: the badge flickered to "完成" while the duration still
+        read 0, which looked like the task never ran.
+        """
+        with self._lock:
+            if 0 <= index < len(self._tasks):
+                self._tasks[index].update(fields)
+
+    def _update_run(
+        self,
+        *,
+        status: str | None = None,
+        current_task: str | None = None,
+        summary: dict[str, Any] | None = None,
+    ) -> None:
+        """Publish run-level fields together; ``None`` means "leave alone"."""
+        with self._lock:
+            if status is not None:
+                self._status = status
+            if current_task is not None:
+                self._current_task = current_task
+            if summary is not None:
+                self._summary = summary
+
+    def _tally(self) -> tuple[int, int]:
+        """Count finished tasks by outcome. Reading under the lock keeps the
+        two numbers consistent with what snapshot() will publish."""
+        with self._lock:
+            succeeded = sum(1 for task in self._tasks if task["status"] == "succeeded")
+            failed = sum(
+                1 for task in self._tasks if task["status"] in {"failed", "timed_out"}
+            )
+        return succeeded, failed
+
+    def _finalize_run(
+        self, *, aborted: bool, cancelled: bool, succeeded: int, failed: int
+    ) -> str:
+        """Decide the terminal status and summary in one place.
+
+        The daily chain and the ad-hoc queue used to compute this separately,
+        which is how they ended up disagreeing on whether a stopped run counts
+        as an error. Log lines stay with the caller because they differ.
+        """
+        with self._lock:
+            if aborted:
+                self._status = "error"
+            elif cancelled:
+                self._status = "cancelled"
+            elif failed:
+                self._status = "completed_with_errors"
+            else:
+                self._status = "completed"
+            self._summary = {"succeeded": succeeded, "failed": failed}
+            return self._status
+
+    def _execute_job(
+        self,
+        session: LiteSession,
+        *,
+        name: str,
+        entry: str,
+        override: dict[str, Any],
+        timeout: float,
+        retries: int = 0,
+        announce: str = "开始任务",
+        started: float | None = None,
+    ) -> tuple[dict[str, Any], float, dict[str, Any]]:
+        """Run one task and classify the result.
+
+        Both the daily chain and the ad-hoc queue come through here. Keeping
+        callback setup, the loop guard, and classification in one place is what
+        stopped the two paths from drifting (timeout handling was the last one
+        to diverge).
+        """
+        begin = started if started is not None else time.monotonic()
+        self._log(f"{announce}：{name}")
+        session.set_node_callback(self._make_round_handler(entry))
+        self._start_guard(session, entry)
+        try:
+            result = session.run_task(
+                entry=entry,
+                pipeline_override=override,
+                timeout_sec=timeout,
+                retries=retries,
+                should_stop=self._guard_stop,
+                agent_check=session.agent_alive,
+            )
+        finally:
+            session.set_node_callback(None)
+            session.set_node_start_callback(None)
+        duration = round(time.monotonic() - begin, 1)
+        outcome = self._classify_result(session, name, result, duration)
+        return outcome, duration, result
+
     def _run_sequence(self, jobs: list[dict[str, Any]]) -> None:
         session = self._make_session()
         with self._lock:
@@ -444,24 +541,14 @@ class RunService:
                     self._single["status"] = "running"
                     self._current_task = name
                 suffix = f"（{index + 1}/{total}）" if total > 1 else ""
-                self._log(f"单独运行{suffix}：{name}")
-                started = time.monotonic()
-                session.set_node_callback(self._make_round_handler(job["entry"]))
-                self._start_guard(session, job["entry"])
-                try:
-                    result = session.run_task(
-                        entry=job["entry"],
-                        pipeline_override=job["override"],
-                        timeout_sec=job["timeout"],
-                        retries=0,
-                        should_stop=self._guard_stop,
-                        agent_check=session.agent_alive,
-                    )
-                finally:
-                    session.set_node_callback(None)
-                    session.set_node_start_callback(None)
-                duration = round(time.monotonic() - started, 1)
-                outcome = self._classify_result(session, name, result, duration)
+                outcome, duration, _result = self._execute_job(
+                    session,
+                    name=name,
+                    entry=job["entry"],
+                    override=job["override"],
+                    timeout=job["timeout"],
+                    announce=f"单独运行{suffix}",
+                )
                 status = outcome["status"]
                 restart_failed = outcome["restart_failed"]
                 if status in {"failed", "timed_out"}:
@@ -478,18 +565,17 @@ class RunService:
                     aborted = aborted or restart_failed
                     break
 
-            with self._lock:
-                if aborted:
-                    self._status = "error"
-                elif self._cancel.is_set():
-                    self._status = "cancelled"
-                elif failures:
-                    self._status = "completed_with_errors"
-                else:
-                    self._status = "completed"
-                done = len(self._single["results"])
-                if total > 1:
-                    self._log(f"批量结束：共 {total} 项，成功 {done - failures} 项，失败 {failures} 项。")
+            done = len(self._single["results"])
+            self._finalize_run(
+                aborted=aborted,
+                cancelled=self._cancel.is_set(),
+                succeeded=done - failures,
+                failed=failures,
+            )
+            if total > 1:
+                self._log(
+                    f"批量结束：共 {total} 项，成功 {done - failures} 项，失败 {failures} 项。"
+                )
         except Exception as error:
             with self._lock:
                 self._status = "error"
@@ -889,9 +975,8 @@ class RunService:
                     continue
 
                 if not self._ensure_ready(session):
-                    task_state["status"] = "failed"
-                    with self._lock:
-                        self._status = "error"
+                    self._update_task(index, status="failed")
+                    self._update_run(status="error")
                     aborted = True
                     self._persist()
                     break
@@ -900,7 +985,6 @@ class RunService:
                     self._current_task = name
                     task_state["status"] = "running"
                 started = time.monotonic()
-                self._log(f"开始任务：{name}")
 
                 probe = item.get("probe")
                 if probe:
@@ -915,9 +999,10 @@ class RunService:
                         )
                         available = True
                     if not available:
-                        task_state["status"] = "skipped"
-                        task_state["duration"] = round(
-                            time.monotonic() - started, 1
+                        self._update_task(
+                            index,
+                            status="skipped",
+                            duration=round(time.monotonic() - started, 1),
                         )
                         self._log(
                             f"未检测到{probe.get('label', '活动入口')}"
@@ -936,28 +1021,21 @@ class RunService:
                 )
                 timeout = task_state["timeout"]
                 retries = int(item.get("retries", 0))
-                session.set_node_callback(
-                    self._make_round_handler(task_def["entry"])
+                outcome, duration, result = self._execute_job(
+                    session,
+                    name=name,
+                    entry=task_def["entry"],
+                    override=override,
+                    timeout=timeout,
+                    retries=retries,
+                    started=started,
                 )
-                self._start_guard(session, task_def["entry"])
-                try:
-                    result = session.run_task(
-                        entry=task_def["entry"],
-                        pipeline_override=override,
-                        timeout_sec=timeout,
-                        retries=retries,
-                        should_stop=self._guard_stop,
-                        agent_check=session.agent_alive,
-                    )
-                finally:
-                    session.set_node_callback(None)
-                    session.set_node_start_callback(None)
-                duration = round(time.monotonic() - started, 1)
-                task_state["duration"] = duration
-                task_state["attempts"] = result.get("attempt", 1)
-
-                outcome = self._classify_result(session, name, result, duration)
-                task_state["status"] = outcome["status"]
+                self._update_task(
+                    index,
+                    duration=duration,
+                    attempts=result.get("attempt", 1),
+                    status=outcome["status"],
+                )
                 if outcome["status"] in {"failed", "timed_out"}:
                     failures += 1
                 if outcome["status"] == "cancelled":
@@ -965,8 +1043,7 @@ class RunService:
                     self._persist()
                     break
                 if outcome["restart_failed"]:
-                    with self._lock:
-                        self._status = "error"
+                    self._update_run(status="error")
                     aborted = True
                     self._persist()
                     break
@@ -977,40 +1054,22 @@ class RunService:
                 # loop has no next iteration to notice it.
                 cancelled = True
 
-            if aborted:
-                succeeded = sum(
-                    1 for task in self._tasks if task["status"] == "succeeded"
-                )
-                failed = sum(
-                    1 for task in self._tasks
-                    if task["status"] in {"failed", "timed_out"}
-                )
-                self._status = "error"
-                self._summary = {"succeeded": succeeded, "failed": failed}
-            elif cancelled:
-                succeeded = sum(
-                    1 for task in self._tasks if task["status"] == "succeeded"
-                )
-                failed = sum(1 for task in self._tasks if task["status"] in {"failed", "timed_out"})
-                self._status = "cancelled"
-                self._summary = {"succeeded": succeeded, "failed": failed}
-                self._log("本次运行已停止。", "warn")
-            else:
-                succeeded = sum(
-                    1 for task in self._tasks if task["status"] == "succeeded"
-                )
-                failed = sum(1 for task in self._tasks if task["status"] in {"failed", "timed_out"})
-                self._status = "completed_with_errors" if failed else "completed"
-                self._summary = {"succeeded": succeeded, "failed": failed}
-                self._log(
-                    f"日常链结束：成功 {succeeded} 项，失败 {failed} 项。",
-                    "warn" if failed else "info",
-                )
-                if load_settings().get("shutdown_action", "none") == "none":
-                    self._log("程序保持运行，不会自动关闭。")
+            succeeded, failed = self._tally()
+            self._finalize_run(
+                aborted=aborted, cancelled=cancelled, succeeded=succeeded, failed=failed
+            )
+            if not aborted:
+                if cancelled:
+                    self._log("本次运行已停止。", "warn")
+                else:
+                    self._log(
+                        f"日常链结束：成功 {succeeded} 项，失败 {failed} 项。",
+                        "warn" if failed else "info",
+                    )
+                    if load_settings().get("shutdown_action", "none") == "none":
+                        self._log("程序保持运行，不会自动关闭。")
         except Exception as error:
-            self._status = "error"
-            self._summary = {"error": str(error)}
+            self._update_run(status="error", summary={"error": str(error)})
             self._log(f"运行异常：{error}", "error")
         finally:
             session.stop()

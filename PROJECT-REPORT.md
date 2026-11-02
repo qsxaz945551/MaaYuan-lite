@@ -1,8 +1,8 @@
 # MaaYuan Lite 项目报告
 
-> 版本：2026-11-02 23:00
-> 定位：**后续开发以本报告为准**。它取代 `开发清单-v2.md` 成为主文档；
-> `LITE.md`（功能现状）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、
+> 版本：2026-11-02 23:00  
+> 定位：**后续开发以本报告为准**。它取代 `开发清单-v2.md` 成为主文档；  
+> `LITE.md`（功能现状）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、  
 > `代码结构自查报告.md`（技术债明细）作为配套文档保留。
 
 ---
@@ -11,23 +11,23 @@
 
 ### 1.1 一句话
 
-把 MaaYuan（如鸢日常自动化工具）从 985 MB 的 MFAAvalonia 桌面应用，重做成一个**自带运行时、
+把 MaaYuan（如鸢日常自动化工具）从 985 MB 的 MFAAvalonia 桌面应用，重做成一个**自带运行时、  
 便携解压即用、约 340 MB 的独立程序**，界面换成 WPF，并补上原版没有的**资源自动更新**与**运行期兜底**。
 
 ### 1.2 北极星
 
-一台**从未装过 MaaYuan** 的 Windows 11 机器，只装雷电模拟器 + 解压 Lite 目录，双击即用；
+一台**从未装过 MaaYuan** 的 Windows 11 机器，只装雷电模拟器 + 解压 Lite 目录，双击即用；  
 装过原版的机器，**删掉原版目录后功能不降级**。
 
 ### 1.3 非目标（明确不做）
 
-| 不做 | 原因 |
-|---|---|
-| 图形安装器 | 只交付便携目录 + zip |
-| 重构 HTML 控制台 | 已被 WPF 取代，只作 `--legacy` 保留 |
-| OCR 量化/蒸馏/换小模型 | 上游红线，识别准确率优先 |
-| 自动战斗、录制作业 | 上游能力，Lite 不接 |
-| 多模拟器/多游戏适配 | 只支持雷电 14 + 如鸢简中 |
+| 不做             | 原因                         |
+| -------------- | -------------------------- |
+| 图形安装器          | 只交付便携目录 + zip              |
+| 重构 HTML 控制台    | 已被 WPF 取代，只作 `--legacy` 保留 |
+| OCR 量化/蒸馏/换小模型 | 上游红线，识别准确率优先               |
+| 自动战斗、录制作业      | 上游能力，Lite 不接               |
+| 多模拟器/多游戏适配     | 只支持雷电 14 + 如鸢简中            |
 
 ### 1.4 交付形态
 
@@ -49,30 +49,30 @@ dist/MaaYuan-Lite-0.2.0/          343 MB（2985 个文件）
 
 ### 2.1 硬验收（V1–V7）
 
-| 编号 | 验收项 | 状态 | 证据 |
-|---|---|---|---|
-| **V1** | 原版目录不可用仍能启动 | ✅ | 原版改名为 `.disabled` 后，`start-lite.bat` 正常起进程，`/api/state` 返回 200 |
-| **V2** | 原版目录不可用仍能连机 | ✅ | 同一状态下「检查连接」成功，截图 720×1280 非黑屏 |
-| **V3** | 原版目录不可用仍能跑完日常 | ⬜ | **未做**（R12，需游戏日常刷新后实跑） |
-| **V4** | 路径无关 | ✅ | 复制到 `D:\测试 目录\MaaYuan Lite\`（中文 + 空格），自检全绿 |
-| **V5** | 干净环境 | ✅ | `set PATH=C:\Windows\system32` 启动，自检全绿，不依赖系统 Python |
-| **V6** | 断网可用 | ◐ | 启动与自检全程不联网；实时断网未单独验证（GitHub 长期不可达，等价覆盖） |
-| **V7** | 无残留引用 | ✅ | 原版改名后功能不降级，进程无 `D:/Apps Game` 句柄 |
+| 编号     | 验收项           | 状态 | 证据                                                             |
+| ------ | ------------- | -- | -------------------------------------------------------------- |
+| **V1** | 原版目录不可用仍能启动   | ✅  | 原版改名为 `.disabled` 后，`start-lite.bat` 正常起进程，`/api/state` 返回 200 |
+| **V2** | 原版目录不可用仍能连机   | ✅  | 同一状态下「检查连接」成功，截图 720×1280 非黑屏                                  |
+| **V3** | 原版目录不可用仍能跑完日常 | ⬜  | **未做**（R12，需游戏日常刷新后实跑）                                         |
+| **V4** | 路径无关          | ✅  | 复制到 `D:\测试 目录\MaaYuan Lite\`（中文 + 空格），自检全绿                     |
+| **V5** | 干净环境          | ✅  | `set PATH=C:\Windows\system32` 启动，自检全绿，不依赖系统 Python            |
+| **V6** | 断网可用          | ◐  | 启动与自检全程不联网；实时断网未单独验证（GitHub 长期不可达，等价覆盖）                        |
+| **V7** | 无残留引用         | ✅  | 原版改名后功能不降级，进程无 `D:/Apps Game` 句柄                               |
 
 **结论：7 项中 5 项通过、1 项部分、1 项待实跑。** V3 是唯一阻塞「可以删原版」的验收。
 
 ### 2.2 里程碑
 
-| 阶段 | 目标 | 状态 | 完成度 |
-|---|---|---|---|
-| **M0** | 基线收口（git、依赖测绘、测试入口） | ✅ | 4/4 |
-| **M1** | 运行时自包含 + 未知界面兜底 | ✅ | 11/12（缺 R12 实跑） |
-| **M2** | API 与进程契约冻结 | ✅ | 11/11 |
-| **M3** | 调度层重构 | 🔶 | 2.5/4 |
-| **M4** | WPF 客户端 | ✅ | 8/8 |
-| **M5** | 打包与分发 | ✅ | 6/6（P4 并入 M6） |
-| **M6** | 启动自检与资源更新 | ✅ | 7/7 |
-| **M7** | 稳定性验收 | ⬜ | 0/4 |
+| 阶段     | 目标                  | 状态 | 完成度             |
+| ------ | ------------------- | -- | --------------- |
+| **M0** | 基线收口（git、依赖测绘、测试入口） | ✅  | 4/4             |
+| **M1** | 运行时自包含 + 未知界面兜底     | ✅  | 11/12（缺 R12 实跑） |
+| **M2** | API 与进程契约冻结         | ✅  | 11/11           |
+| **M3** | 调度层重构               | 🔶 | 2.5/4           |
+| **M4** | WPF 客户端             | ✅  | 8/8             |
+| **M5** | 打包与分发               | ✅  | 6/6（P4 并入 M6）   |
+| **M6** | 启动自检与资源更新           | ✅  | 7/7             |
+| **M7** | 稳定性验收               | ⬜  | 0/4             |
 
 ---
 
@@ -80,12 +80,12 @@ dist/MaaYuan-Lite-0.2.0/          343 MB（2985 个文件）
 
 ### 3.1 M0 基线收口
 
-| 项 | 内容 |
-|---|---|
-| git 版本控制 | 37 次提交，起点 `23a86dc`（2026-11-01 迁移前快照） |
-| 依赖测绘 | `devtools/audit_runtime.py` 静态扫描 import 与 site-packages 差集，输出「需要/冗余/缺失」三张表 |
-| 引用测绘 | `grep "Apps Game"` 全仓库 + 进程句柄实测，得到文件级引用清单 |
-| 测试入口 | `devtools/run_tests.py`。**embeddable Python 的 `python312._pth` 覆盖了 `sys.path`**，cwd 不在其中、`PYTHONPATH` 被忽略，所以必须有这个显式插入项目根的入口 |
+| 项        | 内容                                                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| git 版本控制 | 37 次提交，起点 `23a86dc`（2026-11-01 迁移前快照）                                                                                       |
+| 依赖测绘     | `devtools/audit_runtime.py` 静态扫描 import 与 site-packages 差集，输出「需要/冗余/缺失」三张表                                                  |
+| 引用测绘     | `grep "Apps Game"` 全仓库 + 进程句柄实测，得到文件级引用清单                                                                                   |
+| 测试入口     | `devtools/run_tests.py`。**embeddable Python 的 `python312._pth` 覆盖了 `sys.path`**，cwd 不在其中、`PYTHONPATH` 被忽略，所以必须有这个显式插入项目根的入口 |
 
 ### 3.2 M1 独立运行（核心）
 
@@ -99,20 +99,20 @@ dist/MaaYuan-Lite-0.2.0/          343 MB（2985 个文件）
 
 #### 瘦身（−153 MB）
 
-| 删除/去重 | 节省 |
-|---|---|
+| 删除/去重                                          | 节省    |
+| ---------------------------------------------- | ----- |
 | `pandas` + `pandas.libs`（全仓库无 `import pandas`） | 75 MB |
-| `pip` + `Scripts`（发布包不需要在线装包） | 13 MB |
-| `runtimes/win-x64/native`（与 `maa/bin` 重复） | 65 MB |
+| `pip` + `Scripts`（发布包不需要在线装包）                  | 13 MB |
+| `runtimes/win-x64/native`（与 `maa/bin` 重复）      | 65 MB |
 
 #### 依赖解析加固
 
-| 项 | 实现 |
-|---|---|
-| 原生库 | `session.py` 三级候选链：`runtime_root/native` → `runtime_root/runtimes/win-x64/native` → `site-packages/maa/bin`（用 `importlib.util.find_spec("maa")` 定位，不写死路径） |
-| MaaAgentBinary | 候选链增加 `importlib` 定位的包目录；失败时报「期望位置 + 如何修复」而非 `SessionError` |
-| adb | **不内置**（省 15 MB）。解析顺序：配置值 → 雷电注册表/常见安装路径 → 报错提示手动填 |
-| 路径 | `app.py` 启动先 `os.chdir(ROOT)`，再统一过 `resolve_paths(config, ROOT)`；旧绝对路径且目录不存在时自动迁移 |
+| 项              | 实现                                                                                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 原生库            | `session.py` 三级候选链：`runtime_root/native` → `runtime_root/runtimes/win-x64/native` → `site-packages/maa/bin`（用 `importlib.util.find_spec("maa")` 定位，不写死路径） |
+| MaaAgentBinary | 候选链增加 `importlib` 定位的包目录；失败时报「期望位置 + 如何修复」而非 `SessionError`                                                                                               |
+| adb            | **不内置**（省 15 MB）。解析顺序：配置值 → 雷电注册表/常见安装路径 → 报错提示手动填                                                                                                        |
+| 路径             | `app.py` 启动先 `os.chdir(ROOT)`，再统一过 `resolve_paths(config, ROOT)`；旧绝对路径且目录不存在时自动迁移                                                                         |
 
 #### 启动设施
 
@@ -121,12 +121,12 @@ dist/MaaYuan-Lite-0.2.0/          343 MB（2985 个文件）
 
 #### 运行期兜底（原版没有的）
 
-| 项 | 机制 |
-|---|---|
-| **R20 未知界面** | 任务失败/超时后 probe 主界面（`mainmap/judian.png`、`mainmap/xinzhi.png`）。不在主界面则按风险递增尝试：返回键 → 点右上角关闭区 → 点下方跳过区。每次操作后重新 probe，回到主界面则重试该任务一次。每轮最多 3 次 |
-| **R22 系统 ANR 弹窗** | 识别系统「没有响应」对话框（OCR 关键词 `没有响应/无响应/没有回應`，ROI `[0,400,720,300]`），点「等待」`(303,688)` 并等 20 秒。**不自动点「关闭应用」**，因为会丢进度 |
-| **R23 方向诊断** | 任务失败后读截图 PNG 头，若仍是横屏则在日志里点明「游戏没起来或没转竖屏」，替代一串无意义的识别失败。**不在运行前中止**（物理横屏是正常状态） |
-| **R21 日志归位** | `Tasker.set_log_dir(runtime/debug)`，框架日志与 `save_on_error` 错误帧一起进 `runtime/`，项目根不再产生 `on_error/` |
+| 项                 | 机制                                                                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **R20 未知界面**      | 任务失败/超时后 probe 主界面（`mainmap/judian.png`、`mainmap/xinzhi.png`）。不在主界面则按风险递增尝试：返回键 → 点右上角关闭区 → 点下方跳过区。每次操作后重新 probe，回到主界面则重试该任务一次。每轮最多 3 次 |
+| **R22 系统 ANR 弹窗** | 识别系统「没有响应」对话框（OCR 关键词 `没有响应/无响应/没有回應`，ROI `[0,400,720,300]`），点「等待」`(303,688)` 并等 20 秒。**不自动点「关闭应用」**，因为会丢进度                             |
+| **R23 方向诊断**      | 任务失败后读截图 PNG 头，若仍是横屏则在日志里点明「游戏没起来或没转竖屏」，替代一串无意义的识别失败。**不在运行前中止**（物理横屏是正常状态）                                                             |
+| **R21 日志归位**      | `Tasker.set_log_dir(runtime/debug)`，框架日志与 `save_on_error` 错误帧一起进 `runtime/`，项目根不再产生 `on_error/`                                         |
 
 #### 隔离验收
 
@@ -136,26 +136,26 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 
 #### API 端点（全部 camelCase）
 
-| 方法 | 路径 | 用途 |
-|---|---|---|
-| GET | `/api/state?since=<seq>` | 状态 + 任务列表 + 日志增量 |
-| GET | `/api/events` | SSE，每秒推送状态与新日志 |
-| GET | `/api/plan?training=&dungeon=` | 生成日常计划（不落盘） |
-| GET | `/api/settings` | 启动/结束动作、最近训练 |
-| GET | `/api/task-options?scope=daily\|all` | 任务选项树 |
-| GET | `/api/meta` | 版本、状态枚举、动作枚举、错误码 |
-| GET | `/api/health` | 自检摘要（WPF 启动时先调它） |
-| GET | `/api/updates` | 资源/框架更新检查（6 小时缓存） |
-| GET | `/api/screenshot` | 最近一帧截图 PNG |
-| POST | `/api/start` | 开始日常 |
-| POST | `/api/run-task` | 运行指定任务序列 |
-| POST | `/api/check` | 检查连接（只截图不点击） |
-| POST | `/api/stop` | 停止 |
-| POST | `/api/settings` | 写设置 |
-| POST | `/api/task-options` | 改选项 |
-| POST | `/api/updates/download` | 触发资源下载 |
-| POST | `/api/updates/apply` | 手动切换暂存资源 |
-| POST | `/api/updates/rollback` | 回滚到 `assets.prev/` |
+| 方法   | 路径                                   | 用途                 |
+| ---- | ------------------------------------ | ------------------ |
+| GET  | `/api/state?since=<seq>`             | 状态 + 任务列表 + 日志增量   |
+| GET  | `/api/events`                        | SSE，每秒推送状态与新日志     |
+| GET  | `/api/plan?training=&dungeon=`       | 生成日常计划（不落盘）        |
+| GET  | `/api/settings`                      | 启动/结束动作、最近训练       |
+| GET  | `/api/task-options?scope=daily\|all` | 任务选项树              |
+| GET  | `/api/meta`                          | 版本、状态枚举、动作枚举、错误码   |
+| GET  | `/api/health`                        | 自检摘要（WPF 启动时先调它）   |
+| GET  | `/api/updates`                       | 资源/框架更新检查（6 小时缓存）  |
+| GET  | `/api/screenshot`                    | 最近一帧截图 PNG         |
+| POST | `/api/start`                         | 开始日常               |
+| POST | `/api/run-task`                      | 运行指定任务序列           |
+| POST | `/api/check`                         | 检查连接（只截图不点击）       |
+| POST | `/api/stop`                          | 停止                 |
+| POST | `/api/settings`                      | 写设置                |
+| POST | `/api/task-options`                  | 改选项                |
+| POST | `/api/updates/download`              | 触发资源下载             |
+| POST | `/api/updates/apply`                 | 手动切换暂存资源           |
+| POST | `/api/updates/rollback`              | 回滚到 `assets.prev/` |
 
 #### 错误码（12 个，`docs/api-contract.md` 第七节）
 
@@ -163,27 +163,27 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 {"ok": false, "error": "中文描述", "code": "TASK_UNKNOWN"}
 ```
 
-| code | HTTP | 触发 |
-|---|---|---|
-| `BAD_JSON` | 400 | 请求体不是合法 JSON |
-| `BAD_REQUEST` | 400 | 参数缺失/类型不对 |
-| `TASK_UNKNOWN` | 400 | 任务名不存在 |
-| `PLAN_FAILED` | 400 | 日常计划生成失败 |
-| `OPTIONS_FAILED` | 400 | 选项树读写失败 |
-| `ROLLBACK_FAILED` | 400 | 没有可回滚的备份 |
-| `APPLY_FAILED` | 400 | 资源切换文件系统层失败（已自动回滚） |
-| `APPLY_REJECTED` | 400 | 新资源过门禁但生成不了 interface（已自动回滚） |
-| `BUSY` | 409 | 已有任务在运行 |
-| `DEV_MANAGED` | 409 | 资源来自 `vendor/`，自动更新只对发布包生效 |
-| `NO_SCREENSHOT` | 404 | 还没有截图 |
-| `NOT_FOUND` | 404 | 接口不存在 |
+| code              | HTTP | 触发                           |
+| ----------------- | ---- | ---------------------------- |
+| `BAD_JSON`        | 400  | 请求体不是合法 JSON                 |
+| `BAD_REQUEST`     | 400  | 参数缺失/类型不对                    |
+| `TASK_UNKNOWN`    | 400  | 任务名不存在                       |
+| `PLAN_FAILED`     | 400  | 日常计划生成失败                     |
+| `OPTIONS_FAILED`  | 400  | 选项树读写失败                      |
+| `ROLLBACK_FAILED` | 400  | 没有可回滚的备份                     |
+| `APPLY_FAILED`    | 400  | 资源切换文件系统层失败（已自动回滚）           |
+| `APPLY_REJECTED`  | 400  | 新资源过门禁但生成不了 interface（已自动回滚） |
+| `BUSY`            | 409  | 已有任务在运行                      |
+| `DEV_MANAGED`     | 409  | 资源来自 `vendor/`，自动更新只对发布包生效   |
+| `NO_SCREENSHOT`   | 404  | 还没有截图                        |
+| `NOT_FOUND`       | 404  | 接口不存在                        |
 
 `error` 保留文本形式（HTML 控制台仍在读），`code` 是给 WPF 分支用的稳定标识。
 
 #### 命名
 
-线上格式一律 camelCase，Python 内部仍 snake_case，转换只发生在序列化层。
-`/api/settings` 目前**双写**（`startupAction` + `startup_action`），因为 `--legacy` 的 HTML 控制台还读旧字段。
+线上格式一律 camelCase，Python 内部仍 snake_case，转换只发生在序列化层。  
+`/api/settings` 目前**双写**（`startupAction` + `startup_action`），因为 `--legacy` 的 HTML 控制台还读旧字段。  
 收尾条件：确认不再需要 HTML 后删掉旧字段，`apiVersion` 升到 2。
 
 #### 进程与端口
@@ -194,11 +194,11 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 
 ### 3.4 M3 调度层
 
-| 项 | 状态 | 说明 |
-|---|---|---|
+| 项           | 状态 | 说明                                                                               |
+| ----------- | -- | -------------------------------------------------------------------------------- |
 | D8 合并两套执行循环 | 🔶 | 结果归类已收敛到 `_classify_result`（成功/超时/失败/取消/Agent 死亡/体力耗尽六分支统一处理）；`TaskExecutor` 类未抽 |
-| D4 状态写入加锁 | 🔶 | 关键写入（`_status`/`_tasks[i]`/`_current_task`）已进锁；未统一成 `_update(**fields)` |
-| D5 原生对象释放 | ✅ | `stop()` 显式 `post_close` + 置空，不再靠 GC |
+| D4 状态写入加锁   | 🔶 | 关键写入（`_status`/`_tasks[i]`/`_current_task`）已进锁；未统一成 `_update(**fields)`          |
+| D5 原生对象释放   | ✅  | `stop()` 显式 `post_close` + 置空，不再靠 GC                                             |
 
 ### 3.5 M4 WPF 客户端
 
@@ -209,28 +209,28 @@ desktop/MaaYuanLite.Desktop/    17 个文件，1654 行 C#
   Models/OptionGroup.cs         选项控件模型
 ```
 
-| 项 | 实现 |
-|---|---|
-| **W0 发布形态** | framework-dependent，`net10.0-windows`。理由：.NET 10 是 LTS（到 2028-11），.NET 8 在 2026-11-10 EOL、.NET 9 已 EOL |
-| **W1 三栏** | 左任务 / 中选项 / 右日志，1360×880 |
-| **W2 进程管理** | 查根目录 → 复用已运行实例（读 `port.txt`）→ 否则起 `python app.py --no-browser --parent-pid <pid>` |
-| **W3 状态与日志** | 2 秒轮询 `/api/state`，增量渲染，上限 800 行 |
-| **W4 选项控件** | 下拉（>2 项）/ 开关（=2 项，`Yes` 固定为开）/ 文本框，改动即时写回 |
-| **W5 启停动作** | 顶栏两个下拉，读写 `/api/settings` |
-| **W6 首次自检** | 启动调 `/api/health`，只有 fail 才弹窗；模拟器未开只是警告 |
-| **W7 替换 Edge** | `start-lite.bat` 默认启 WPF，`--legacy` 才走浏览器；删除 `find_edge`/窗口枚举，`app.py` 从 770 行降到 730 行 |
-| 更新徽章 | 三态：有更新（黄）/ 正在下载（蓝，带百分比与 MB）/ 待生效（点击可重启） |
+| 项              | 实现                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| **W0 发布形态**    | framework-dependent，`net10.0-windows`。理由：.NET 10 是 LTS（到 2028-11），.NET 8 在 2026-11-10 EOL、.NET 9 已 EOL |
+| **W1 三栏**      | 左任务 / 中选项 / 右日志，1360×880                                                                               |
+| **W2 进程管理**    | 查根目录 → 复用已运行实例（读 `port.txt`）→ 否则起 `python app.py --no-browser --parent-pid <pid>`                      |
+| **W3 状态与日志**   | 2 秒轮询 `/api/state`，增量渲染，上限 800 行                                                                       |
+| **W4 选项控件**    | 下拉（>2 项）/ 开关（=2 项，`Yes` 固定为开）/ 文本框，改动即时写回                                                              |
+| **W5 启停动作**    | 顶栏两个下拉，读写 `/api/settings`                                                                              |
+| **W6 首次自检**    | 启动调 `/api/health`，只有 fail 才弹窗；模拟器未开只是警告                                                                |
+| **W7 替换 Edge** | `start-lite.bat` 默认启 WPF，`--legacy` 才走浏览器；删除 `find_edge`/窗口枚举，`app.py` 从 770 行降到 730 行                 |
+| 更新徽章           | 三态：有更新（黄）/ 正在下载（蓝，带百分比与 MB）/ 待生效（点击可重启）                                                                |
 
 **顺手修的真 bug**：WPF 用 `--no-browser` 启动，而「启动时自动运行日常」写在该分支内 —— 这个设置从来没生效过。已移出，实测 `--no-browser` 下能自动开跑。
 
 ### 3.6 M5 打包与分发
 
-| 项 | 内容 |
-|---|---|
+| 项                           | 内容                                                                                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `devtools/build_release.py` | `dotnet publish` → 重建 interface → 复制 runtime_env/assets/agent/lite/docs → 写 `start-lite.bat` → 产出 `dist/MaaYuan-Lite-<version>/` |
-| 产物 | 343 MB / 2985 文件；`grep "Apps Game"` 为零 |
-| `devtools/upgrade.py` | 默认预演，`--apply` 才执行；保留 `lite/*.json`、`runtime/`；配置先备份到 `runtime/upgrade-backup-<时间>/` |
-| `NOTICE.md` | 11 个第三方组件及许可 |
+| 产物                          | 343 MB / 2985 文件；`grep "Apps Game"` 为零                                                                                           |
+| `devtools/upgrade.py`       | 默认预演，`--apply` 才执行；保留 `lite/*.json`、`runtime/`；配置先备份到 `runtime/upgrade-backup-<时间>/`                                             |
+| `NOTICE.md`                 | 11 个第三方组件及许可                                                                                                                     |
 
 ### 3.7 M6 启动自检与资源更新
 
@@ -259,7 +259,7 @@ GitHub API 查 v5 HEAD
 
 #### 应用器（`lite/update_applier.py`）
 
-原子切换：`resource/base` + `interface.json` + **`agent/`** + `.source.json` 一起换；
+原子切换：`resource/base` + `interface.json` + **`agent/`** + `.source.json` 一起换；  
 旧版本整体移到 `assets.prev/`；生成 interface 失败或门禁不过 → **自动回滚**。
 
 `agent/` 现在会被更新替换，所以**改 agent 必须走 `pipeline_fixes.py`，不能直接改 `agent/` 下的文件**（下次更新会被覆盖）。
@@ -270,11 +270,11 @@ pipeline 节点数、interface 任务数、日常链任务名、`pipeline_fixes`
 
 #### 状态与开关
 
-| 对象 | 检查 | 下载 | 生效 | 默认 |
-|---|---|---|---|---|
+| 对象              | 检查        | 下载 | 生效     | 默认    |
+| --------------- | --------- | -- | ------ | ----- |
 | 资源 + 模型 + agent | 自动（启动后后台） | 自动 | 下次启动切换 | **开** |
-| maa 框架 | 自动 | 手动 | 下次启动切换 | **关** |
-| Lite 自身 | 自动 | 手动 | 手动替换 | — |
+| maa 框架          | 自动        | 手动 | 下次启动切换 | **关** |
+| Lite 自身         | 自动        | 手动 | 手动替换   | —     |
 
 框架只提示不自动装的理由：上游把 `maafw` 钉在 5.6.0，而那才是兼容基线（PyPI 最新 5.14.3）。
 
@@ -283,6 +283,7 @@ pipeline 节点数、interface 任务数、日常链任务名、`pipeline_fixes`
 `lite/selftest.py` 10 项检查，1 秒内完成，结果挂 `/api/health` 并落盘 `runtime/selftest.json`。
 
 `lite/agent_guard.py`（182 行）：
+
 - **孤儿 agent 清理**：启动时读 `runtime/agent.json`，用 ctypes 校验进程映像路径确实是我们的 python 才 terminate，避免误杀别人的进程
 - **日志轮转**：agent 日志 40 个、错误帧 40 张、资源包缓存 3 个
 
@@ -290,21 +291,21 @@ pipeline 节点数、interface 任务数、日常链任务名、`pipeline_fixes`
 
 自查报告 P0 七项全部关闭；P1 处理 8 项。
 
-| ID | 内容 |
-|---|---|
-| D1 | git 版本控制 |
-| D2 | 连接检查不再清空日常进度（原本点一下「继续未完成」就没了） |
-| D3 | 取消判定的死代码 |
-| D4 | 关键状态写入加锁 |
-| D5 | 原生对象显式释放 |
-| D6 | `vendor/` 划分，上游与自研分离 |
-| D7 | spike 产物移出仓库 |
-| D16 | API 版本号 + 错误码 |
-| D17 | interface 按 mtime 自动重建（原本改了 scope 不重建，改动"不生效"） |
-| D18 | 端口写文件 |
-| D19 | **日志落盘 `runtime/lite.log`**（原本崩溃后 Lite 侧日志全丢） |
+| ID  | 内容                                                         |
+| --- | ---------------------------------------------------------- |
+| D1  | git 版本控制                                                   |
+| D2  | 连接检查不再清空日常进度（原本点一下「继续未完成」就没了）                              |
+| D3  | 取消判定的死代码                                                   |
+| D4  | 关键状态写入加锁                                                   |
+| D5  | 原生对象显式释放                                                   |
+| D6  | `vendor/` 划分，上游与自研分离                                       |
+| D7  | spike 产物移出仓库                                               |
+| D16 | API 版本号 + 错误码                                              |
+| D17 | interface 按 mtime 自动重建（原本改了 scope 不重建，改动"不生效"）             |
+| D18 | 端口写文件                                                      |
+| D19 | **日志落盘 `runtime/lite.log`**（原本崩溃后 Lite 侧日志全丢）              |
 | D20 | **体力探测只对消耗体力的任务**（原本任何失败都跑 1.2 秒 OCR，且可能把无关失败误判成"体力耗尽=成功"） |
-| D15 | HTML 控制台不做重构（被 WPF 取代） |
+| D15 | HTML 控制台不做重构（被 WPF 取代）                                     |
 
 ---
 
@@ -347,6 +348,7 @@ MaaYuan-Lite/
 │                           lite.log、logs/、debug/、cache/、failures/
 └─ build/generated/         interface.json（启动时按 mtime 自动重建）
 ```
+
 
 ### 4.2 一次日常的执行路径
 
