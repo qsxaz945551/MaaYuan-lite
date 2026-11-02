@@ -321,6 +321,13 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
             if parsed.path == "/api/events":
                 self._sse(service)
                 return
+            if parsed.path == "/api/updates":
+                query = parse_qs(parsed.query)
+                force = query.get("refresh", ["0"])[0] == "1"
+                from lite.updater import check_updates
+
+                self._json(check_updates(ROOT, force=force))
+                return
             if parsed.path == "/api/health":
                 query = parse_qs(parsed.query)
                 force = query.get("refresh", ["0"])[0] == "1"

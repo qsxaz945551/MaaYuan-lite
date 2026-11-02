@@ -164,6 +164,13 @@ def main() -> int:
     if not problems:
         pipeline = base / "resource" / "base" / "pipeline"
         print(f"校验通过：pipeline {len(list(pipeline.rglob('*.json')))} 个 JSON，模型齐全")
+
+        sys.path.insert(0, str(ROOT))
+        from lite.source_manifest import write_manifest
+
+        manifest = write_manifest(DEST)
+        print(f"来源清单：{manifest}")
+
         print("\n把 lite/runtime-config.json 指向这个目录即可：")
         print(json.dumps({
             "resource_root": str((base / "resource" / "base").resolve()).replace("\\", "/"),
