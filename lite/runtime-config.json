@@ -9,7 +9,7 @@
   "host": "127.0.0.1",
   "port": 8765,
   "automation": {
-    "startup_action": "minimize_only",
+    "startup_action": "none",
     "shutdown_action": "none",
     "last_training": "修为",
     "last_dungeon": false,

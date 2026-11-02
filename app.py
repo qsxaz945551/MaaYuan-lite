@@ -225,14 +225,6 @@ def seasonal_default_enabled() -> bool:
     return False
 
 
-def find_edge() -> Path | None:
-    candidates = [
-        Path(os.environ.get("ProgramFiles(x86)", "")) / "Microsoft/Edge/Application/msedge.exe",
-        Path(os.environ.get("ProgramFiles", "")) / "Microsoft/Edge/Application/msedge.exe",
-    ]
-    return next((path for path in candidates if path.is_file()), None)
-
-
 def _auto_start(service: RunService, settings: dict, delay: float) -> None:
     import time
 
@@ -269,48 +261,13 @@ def _close_app_window(title: str = "MaaYuan Lite") -> None:
         user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
 
 
-def _minimize_window(title: str = "MaaYuan Lite", delay: float = 2.5) -> None:
-    """Minimise the app window once it exists (Edge keeps its own window size)."""
-    import ctypes
-    import ctypes.wintypes as wt
-    import time
+def open_ui(url: str) -> None:
+    """Open the legacy web console in the default browser.
 
-    time.sleep(delay)
-    user32 = ctypes.windll.user32
-    handles: list[int] = []
-    callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
-
-    def callback(hwnd, _lparam):
-        if not user32.IsWindowVisible(hwnd):
-            return True
-        buffer = ctypes.create_unicode_buffer(256)
-        user32.GetWindowTextW(hwnd, buffer, 256)
-        if buffer.value == title:
-            handles.append(hwnd)
-        return True
-
-    entry = callback_type(callback)
-    user32.EnumWindows(entry, 0)
-    for hwnd in handles:
-        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
-
-
-def open_ui(url: str, minimized: bool = False) -> None:
-    edge = find_edge()
-    if edge is not None:
-        subprocess.Popen(
-            [
-                str(edge),
-                f"--app={url}",
-                "--window-size=1360,880",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if minimized:
-            threading.Thread(target=_minimize_window, daemon=True).start()
-    else:
-        webbrowser.open(url)
+    Only ``start-lite.bat --legacy`` reaches this: the WPF shell owns its own
+    window, so there is no Edge app mode or window sizing to manage here.
+    """
+    webbrowser.open(url)
 
 
 class LiteHTTPServer(ThreadingHTTPServer):
@@ -707,7 +664,7 @@ def main() -> int:
     host = config.get("host", "127.0.0.1")
     if not args.no_browser and running_instance(host, port):
         print("控制台已在运行，直接打开窗口。", flush=True)
-        open_ui(f"http://{host}:{port}", False)
+        open_ui(f"http://{host}:{port}")
         return 0
     service = RunService(ROOT, config)
     server_ref: list[LiteHTTPServer] = []
@@ -747,14 +704,17 @@ def main() -> int:
     auto_check(ROOT, enabled=bool(settings.get("auto_update_resources", True)))
 
     if not args.no_browser:
-        minimized = startup in ("minimize_only", "auto_run_minimized")
-        threading.Timer(0.6, lambda: open_ui(url, minimized)).start()
-        if startup in ("auto_run", "auto_run_minimized"):
-            threading.Thread(
-                target=_auto_start,
-                args=(service, settings, 6.0 if minimized else 4.0),
-                daemon=True,
-            ).start()
+        threading.Timer(0.6, lambda: open_ui(url)).start()
+
+    # WPF starts the service with --no-browser, so auto-run must not live inside
+    # that branch: "启动时自动运行日常" is an automation setting, not a UI one.
+    if startup in ("auto_run", "auto_run_minimized"):
+        delay = 6.0 if startup == "auto_run_minimized" else 4.0
+        threading.Thread(
+            target=_auto_start,
+            args=(service, settings, delay),
+            daemon=True,
+        ).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

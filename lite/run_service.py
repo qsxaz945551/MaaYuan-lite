@@ -38,6 +38,21 @@ DEFAULT_TIMEOUTS = {
 }
 
 
+def _png_size(path: Path) -> tuple[int, int] | None:
+    """Read width/height from a PNG header without loading the image."""
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(24)
+    except OSError:
+        return None
+    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    return (
+        int.from_bytes(head[16:20], "big"),
+        int.from_bytes(head[20:24], "big"),
+    )
+
+
 class RunService:
     def __init__(self, project_root: Path, config: dict[str, Any]) -> None:
         self.project_root = project_root
@@ -666,6 +681,31 @@ class RunService:
 
         return outcome
 
+    def _warn_if_landscape(self, session: LiteSession | None = None) -> None:
+        """Upstream ROIs assume a portrait 720x1280 screen.
+
+        A landscape emulator makes every recognition miss while the framework
+        only reports ``roi is out of range``, which reads like a bug in Lite.
+        Say it plainly once instead of letting eight tasks fail silently.
+        """
+        path = self._last_screenshot
+        if session is not None:
+            try:
+                session.capture_png(path)
+            except Exception:  # noqa: BLE001 - a missing screenshot is not fatal
+                return
+        size = _png_size(path)
+        if size is None:
+            return
+        width, height = size
+        if width <= height:
+            return
+        self._log(
+            f"模拟器当前是横屏 {width}x{height}，资源按竖屏 720x1280 制作，"
+            f"识别会全部失败。请把模拟器分辨率改为 720x1280 并重启后再运行。",
+            "error",
+        )
+
     def _check_connection(self, previous_status: str = "idle") -> None:
         session = self._make_session()
         with self._lock:
@@ -675,6 +715,7 @@ class RunService:
             session.start()
             session.capture_png(self._last_screenshot)
             self._log("连接成功，截图已保存：runtime/last-screen.png")
+            self._warn_if_landscape()
             restored = previous_status
             if restored in {"checking", "starting", "running"}:
                 restored = "idle"
@@ -746,6 +787,7 @@ class RunService:
             self._log("正在连接模拟器并启动 Agent……")
             session.start()
             self._log("连接成功，开始执行日常链。")
+            self._warn_if_landscape(session)
 
             for index, item in enumerate(plan["tasks"]):
                 if self._cancel.is_set():
