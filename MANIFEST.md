@@ -1,111 +1,124 @@
 # 目录归属清单（MANIFEST）
 
-MaaYuan Lite 的代码分成两类：**自研**（本仓库维护）和**上游**（从 MaaYuan 复制，不修改）。
-本文件定义这条边界，打包时按此决定带什么。
+MaaYuan Lite 的代码分成三类：**自研**（本仓库维护）、**上游**（从 MaaYuan 复制，
+会被资源更新替换）、**生成**（运行时产生，不入库）。
+
+本文件定义这条边界，打包（`devtools/build_release.py`）按此决定带什么。
 
 ## 自研（需要维护、需要入库）
 
-| 路径 | 说明 | 行数 |
+| 路径 | 说明 | 规模 |
 |---|---|---|
-| `app.py` | HTTP 服务、进程与窗口管理 | 430 |
-| `lite/*.py` | 调度、会话、选项、配置解析（10 个模块） | 2234 |
-| `lite/ui/index.html` | 前端单文件（将被 WPF 替换） | 926 |
-| `lite/tests/` | 10 个测试文件，49 项用例 | 908 |
-| `lite/*.json` | 日常链定义、选项快照、scope、运行配置 | — |
-| `start-lite.bat` | 启动脚本 | 20 |
-| `devtools/` | 开发期工具（静态扫描、进程测量） | — |
-| `LITE.md` / `代码结构自查报告.md` | 项目文档 | — |
+| `app.py` | HTTP 服务、进程守卫、启动编排 | 727 行 |
+| `lite/*.py` | 调度、会话、选项、更新、自检（21 个模块） | 4230 行 |
+| `lite/ui/index.html` | 旧浏览器控制台（`--legacy` 才用，WPF 上线后退役） | 926 行 |
+| `lite/tests/` | 16 个测试文件 | 1433 行，83 项用例 |
+| `lite/*.json` | 日常链、选项快照、scope、运行配置、来源清单 | — |
+| `desktop/MaaYuanLite.Desktop/` | WPF 客户端（.cs + .xaml） | 17 个文件，约 1200 行 |
+| `start-lite.bat` | 启动器（**GBK + CRLF**，默认拉起 WPF） | 40 行 |
+| `devtools/` | 开发期工具（同步、自检、打包、测量） | 13 个脚本 |
+| `docs/api-contract.md` | 字段级 API 契约与错误码表 | — |
+| `NOTICE.md` | 第三方声明 | — |
+| `LITE.md` / `MANIFEST.md` / `开发清单-v2.md` | 项目文档 | — |
 
-## 上游（运行时依赖，不修改，随上游版本更新）
+## 上游（运行时可被更新替换）
 
 | 路径 | 体积 | 运行时用途 | 入库 |
 |---|---|---|---|
-| `assets/interface.json` | 431 KB | **任务与选项定义源头**，`apply_scope.py` 读它生成 Lite 版 interface | ✅ 入库（文本，可 diff） |
-| `assets/resource/` | 67 MB | 图片模板、OCR 模型、流水线 JSON | ❌ 不入库 |
-| `assets/config/` | 1 KB | 上游配置模板 | ❌ 不入库 |
-| `agent/` | 8.5 MB | Python Agent：自定义识别/动作、`*.npz` 索引 | ⚠️ 入库（不支持 LFS，暂按二进制提交） |
-| `deps/` | 303 KB | 上游依赖脚本 | ❌ 已被 `.gitignore` 排除 |
+| `assets/interface.json` | 424 KB | **任务与选项定义源头**，`apply_scope.py` 读它生成裁剪版 | ✅ 文本，可 diff |
+| `assets/.source.json` | 1 KB | 记录来源 commit、子模块 pin、8 个模型 sha256 | ✅ 小文本 |
+| `assets/resource/base/` | 75 MB | 图片模板、OCR 模型、流水线 JSON | ❌ |
+| `agent/` | 7.5 MB | Python Agent：自定义识别/动作、`*.npz` 索引 | ⚠️ 入库（无 LFS） |
 
-## 上游（非运行时，已移出主目录）
+**`agent/` 不再是"只读"**：资源自动更新会连同 agent 脚本一起替换，且在
+`apply_staged` 里与 `resource/base` 原子切换。改 agent 的补丁应写在
+`lite/pipeline_fixes.py`，不要直接改 `agent/` 下的文件 —— 下次更新会被覆盖。
 
-原在本项目根目录，运行时零引用（已用 grep 验证），2026-11-01 移入 `vendor/upstream/`：
+## 运行时（自带，不依赖原版安装）
 
-`docs/` `guide/` `homepage/` `tools/` `android/` `config/` `MFAUpdater`
-`check_resource.py` `configure.py` `install.py` `install4release.py` `migrate_pipeline_v5.py`
-`StockReport.txt` `CONTACT` `logo.png` `v5-release-note.md` `自定义派遣脚本修改说明.md`
+`runtime_env/` 共 **293 MB**，已被 `.gitignore` 排除，发布包由 `build_release.py` 打包：
 
-合计 **36 MB**。`vendor/` 整体被 `.gitignore` 排除，需要时从上游压缩包重新解出即可。
+```
+runtime_env/
+  python/                    CPython 3.12.10 embeddable（含 maa 5.6.0、cv2、numpy、PIL）
+  python/Lib/site-packages/
+    maa/bin/                 MaaFramework 原生库（60 MB，已替代原版 runtimes/win-x64/native）
+    MaaAgentBinary/          Agent 二进制（13 MB）
+```
 
-## 上游来源
+已删除：`pandas`（75 MB，全仓库无引用）、`pip`（13 MB）、重复的 `runtimes/`（65 MB）。
 
-- 仓库：`https://github.com/syoius/MaaYuan`，分支 `v5`（默认分支）
-- 当前同步版本：提交 `c119472`（2026-10-26），由 `devtools/sync_repo.py` 记录
-- 资源与 agent 由 `vendor/MaaYuan-src/` 提供；项目内的 `assets/`、`agent/` 是早期从
-  `MaaYuan-win-x86_64-v2.1.1-beta.6` 安装目录复制的副本，现在只作兜底
-- 运行时（Python / maa 包 / MaaAgentBinary）仍指向安装目录，见下一节
+2026-11-02 起原版安装目录 `D:\Apps Game\MaaYuan-win-x86_64-v2.1.1-beta.6` 已改名
+`.disabled`，Lite 仍能启动、连接、截图、跑任务（V1/V2 验收通过）。
 
-## 资源更新（游戏更新时最重要的一节）
+## 生成（运行时产生，不入库）
 
-**现在是直接从 GitHub 仓库同步，不再依赖原版安装。**
+| 路径 | 说明 |
+|---|---|
+| `build/generated/interface.json` | `apply_scope.py` 的裁剪产物，启动时按 mtime 自动重建 |
+| `runtime/port.txt` | 实际监听端口（WPF 读它，不解析 stdout） |
+| `runtime/last-run.json` | 上次运行进度，「继续未完成」依赖它 |
+| `runtime/agent.json` | agent 进程 PID，崩溃后用于清理孤儿 |
+| `runtime/debug/maa.log` | MaaFramework 日志（`Tasker.set_log_dir` 指定） |
+| `runtime/debug/on_error/` | 识别失败帧，保留最近 40 张 |
+| `runtime/logs/agent-*.log` | agent stdout/stderr，保留最近 40 个 |
+| `runtime/cache/*.zip` | 已下载的资源包，保留最近 3 个 |
+| `runtime/selftest.json` | 最近一次自检结果 |
+| `runtime/update-check.json` | 更新检查缓存（6 小时） |
+| `assets.next/` `assets.prev/` | 资源切换的暂存与备份，切换瞬间存在 |
+| `on_error/` | **历史遗留**，旧版本写在项目根；新版本已改到 `runtime/debug/on_error/` |
 
-上游仓库 `github.com/syoius/MaaYuan`（分支 `v5`）里有 pipeline、图片、
-`interface.json` 和 `agent/`；OCR 模型放在子模块 `MaaXYZ/MaaCommonAssets`
-（344 MB，整克隆不划算），所以只按需下载当前版本需要的 7 个文件
-（`ppocr_v6/small` 主模型 + `ppocr_v5/zh_cn` 密探名模型 + `ppocr_v4/en_us` 英文）。
+## 资源更新（两条路径）
+
+### 用户侧：自动更新（发布包）
+
+`lite/downloader.py` 在启动后后台检查 GitHub，有新版就下载到 `assets.next/`：
+
+1. 下载 `syoius/MaaYuan` 对应 commit 的 zip（约 58 MB），只解压 `assets/` + `agent/`
+2. OCR 模型按子模块 pin 取：pin 未变则从现有资源**复制**（省 38 MB），变了才下载
+3. 校验（pipeline 数量 ≥ 100、主模型齐全、agent/main.py）
+4. 写 `.source.json` → `assets.next.part` 改名为 `assets.next`
+5. **下次启动**时原子切换；生成 interface 失败会自动回滚
+
+模型清单是 **8 个文件**（`ppocr_v4/en_us` 上游没有 `det.onnx`，英文复用主检测器）。
+
+### 开发侧：`sync_repo.py`
 
 ```bash
-python devtools/sync_repo.py            # 首次：克隆 + 下载模型（约 100 MB）
-python devtools/sync_repo.py --update   # 之后：拉取最新提交，模型按大小增量更新
-python devtools/sync_repo.py --check    # 只看当前版本，不下载
+python devtools/sync_repo.py            # 克隆上游到 vendor/MaaYuan-src 并下载模型
+python devtools/sync_repo.py --update   # 拉最新提交
+python devtools/sync_repo.py --check    # 只看版本
 ```
 
-克隆落在 `vendor/MaaYuan-src/`（已被 `.gitignore` 排除，约 181 MB）。
+克隆落在 `vendor/MaaYuan-src/`（约 181 MB，已 gitignore）。开发配置若指向
+`vendor/`，自动更新会**拒绝切换**并提示「自动更新只对发布包生效」—— 这是刻意的，
+避免更新一个运行时根本不读的目录。
 
-`lite/runtime-config.json` 的三个字段指向它（**相对路径按项目根解析**）：
-
-```json
-"resource_root": "vendor/MaaYuan-src/assets/resource/base",
-"agent_root": "vendor/MaaYuan-src/agent",
-"interface_source": "vendor/MaaYuan-src/assets/interface.json"
-```
-
-三个字段留空 = 回退到项目内的 `assets/`、`agent/` 副本（这份副本仍在，作为兜底）。
-
-`start-lite.bat` 每次启动都会重跑 `apply_scope.py`，裁剪结果随仓库版本刷新。
-
-### 更新后的自检
+### 更新后的兼容性检查
 
 ```bash
 python devtools/check_upstream.py
 ```
 
-校验三件事：资源路径是否完整（含 OCR 模型）、`daily-profile` 里的任务名是否还存在、
-`pipeline_fixes` 与 `round_progress` 依赖的节点名是否还存在。有问题退出码为 1。
+校验资源完整性、`daily-profile` 任务名、`pipeline_fixes` / `round_progress` 依赖的
+节点名。有问题退出码为 1。`lite/update_gate.py` 在切换前会做同样的检查。
 
-**游戏大版本更新后的顺序**：`sync_repo.py --update` → `check_upstream.py` →
-任务名/节点名失效就先改 `daily-profile.json` / `pipeline_fixes.py` / `round_progress.py`
-→ 再跑日常。
+## 上游来源
 
-## 仍然依赖原版安装的部分
-
-资源已经不依赖了，但**运行时还依赖**，卸载前需要补齐：
-
-| 依赖 | 现状 | 卸载后怎么办 |
-|---|---|---|
-| Python 解释器 | 用 `D:/Apps Game/MaaYuan-.../python/python.exe` | 自带 embeddable Python，或装系统 Python |
-| `maa` 包（含原生库 66 MB） | 用原版 site-packages | `pip install maa`（自带 `bin/*.dll`） |
-| `MaaAgentBinary`（13 MB） | 用原版 `libs/MaaAgentBinary` | `pip install MaaAgentBinary`（独立包） |
-| MaaFramework 原生库 | `runtime_root/runtimes/win-x64/native` | 已含在 `maa` 包的 `bin/` 里 |
-
-也就是说「卸载原版」还差一步：把这四样搬进 Lite 自己的目录。做完之后
-`runtime_root` 就可以不再指向 `D:/Apps Game/...`。
+- 仓库：`https://github.com/syoius/MaaYuan`，分支 `v5`
+- 当前同步版本：`c119472`（2026-10-26），子模块 `MaaCommonAssets` pin `dabcd46`
+- `assets/.source.json` 是机器可读的记录；`vendor/MaaYuan-src` 是开发期的完整克隆
 
 ## 恢复步骤（换机器 / 重装）
 
-1. `git clone` 本仓库（`assets/resource` 与 `vendor/` 不入库，需重新获取）
-2. `python devtools/sync_repo.py` 拉取上游资源与模型
-3. 修改 `lite/runtime-config.json` 的 `runtime_root` / `adb_path`（指向 Python 与 adb）
-4. 运行 `python lite/apply_scope.py` 生成 `build/generated/interface.json`
-5. 运行 `python -m unittest discover -s lite/tests` 确认环境正常
-5. 运行 `python lite/apply_scope.py` 生成 `build/generated/interface.json`
-6. 运行 `python -m unittest discover -s lite/tests` 确认环境正常
+**用发布包**（推荐）：解压 `dist/MaaYuan-Lite-<版本>` → 双击 `start-lite.bat`。
+包内自带 `runtime_env/`、`assets/`、`agent/`，无需任何前置安装（除 .NET 10 Desktop Runtime）。
+
+**从源码**：
+
+1. `git clone` 本仓库（`assets/resource`、`runtime_env`、`vendor` 不入库）
+2. 准备运行时：复制一份 embeddable Python 到 `runtime_env/python/`，`pip install maa MaaAgentBinary opencv-python numpy pillow loguru zhconv jsonschema openpyxl`
+3. 准备资源：`python devtools/sync_repo.py`（或让下载器跑一次）
+4. `python lite/apply_scope.py` 生成 interface
+5. `python devtools/run_tests.py` 跑测试，`python app.py --selftest` 查环境
+6. `dotnet build desktop/MaaYuanLite.Desktop` 编译 WPF，双击 `start-lite.bat`
