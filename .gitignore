@@ -480,5 +480,6 @@ DailyRewards.txt
 /vendor/
 /runtime/
 /runtime_env/
+/on_error/
 /lite/task-inputs.json
 /lite/runtime-config.dev.json

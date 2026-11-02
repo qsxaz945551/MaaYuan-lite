@@ -195,13 +195,14 @@ class RunService:
         if resume and not self.can_resume():
             return False
         self._cancel.clear()
-        self._status = "starting"
-        self._current_task = ""
-        self._single = None
-        self._summary = {}
-        self._started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._finished_at = ""
-        self._reset_logs()
+        with self._lock:
+            self._status = "starting"
+            self._current_task = ""
+            self._single = None
+            self._summary = {}
+            self._started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self._finished_at = ""
+            self._reset_logs()
         self._thread = threading.Thread(
             target=self._run_daily,
             args=(training, include_dungeon, resume),
@@ -291,11 +292,12 @@ class RunService:
             )
 
         self._cancel.clear()
-        self._status = "starting"
-        self._current_task = names[0]
-        self._started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._finished_at = ""
-        self._reset_logs()
+        with self._lock:
+            self._status = "starting"
+            self._current_task = names[0]
+            self._started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self._finished_at = ""
+            self._reset_logs()
         with self._lock:
             self._single = {
                 "name": names[0],
@@ -726,8 +728,9 @@ class RunService:
                     self._persist()
                     break
 
-                self._current_task = name
-                task_state["status"] = "running"
+                with self._lock:
+                    self._current_task = name
+                    task_state["status"] = "running"
                 started = time.monotonic()
                 self._log(f"开始任务：{name}")
 
