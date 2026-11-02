@@ -257,7 +257,35 @@ def evaluate(project_root: Path, config: dict[str, Any], echo: bool = True) -> R
     _check_interface(report, project_root)
     _check_port(report, str(config.get("host", "127.0.0.1")), int(config.get("port", 8765)))
 
+    _persist(project_root, report)
     return report
+
+
+def _persist(project_root: Path, report: Report) -> None:
+    """Drop the result where the shell and support requests can find it."""
+    import json
+    from datetime import datetime
+
+    try:
+        target = project_root / "runtime" / "selftest.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(
+                {
+                    "checkedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "ok": report.failed == 0,
+                    "failed": report.failed,
+                    "warned": report.warned,
+                    "items": report.items,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
 
 
 def run_selftest(project_root: Path, config: dict[str, Any]) -> int:

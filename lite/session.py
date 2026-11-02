@@ -301,6 +301,11 @@ class LiteSession:
             stdout=self._agent_stdout,
             stderr=self._agent_stderr,
         )
+        # The PID survives us: if this process is killed, the next start reaps
+        # the orphan before it grabs the adb socket again.
+        from . import agent_guard
+
+        agent_guard.record(self.project_root, self._agent_process.pid)
 
     def _wait_for_agent(self, timeout: float) -> None:
         deadline = time.monotonic() + timeout
@@ -558,6 +563,9 @@ class LiteSession:
             except subprocess.TimeoutExpired:
                 self._agent_process.kill()
         self._agent_process = None
+        from . import agent_guard
+
+        agent_guard.clear(self.project_root)
         for stream in (self._agent_stdout, self._agent_stderr):
             if stream is not None:
                 try:

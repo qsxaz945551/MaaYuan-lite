@@ -659,6 +659,14 @@ def main() -> int:
         print("Generated interface missing. Run: python lite/apply_scope.py", file=sys.stderr)
         return 1
 
+    # Housekeeping before anything opens a socket: an agent orphaned by a crash
+    # would otherwise steal the adb connection from this run.
+    from lite import agent_guard
+
+    for action in agent_guard.reap_orphans(ROOT):
+        print(action, flush=True)
+    agent_guard.rotate_logs(ROOT)
+
     port = args.port or int(config.get("port", 8765))
     host = config.get("host", "127.0.0.1")
     if not args.no_browser and running_instance(host, port):
