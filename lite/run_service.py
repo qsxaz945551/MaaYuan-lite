@@ -360,36 +360,11 @@ class RunService:
                     session.set_node_callback(None)
                     session.set_node_start_callback(None)
                 duration = round(time.monotonic() - started, 1)
-                restart_failed = False
-                if self._guard_event.is_set() and not self._cancel.is_set():
-                    status, reason = "failed", f"疑似死循环（{self._guard_node}）"
+                outcome = self._classify_result(session, name, result, duration)
+                status = outcome["status"]
+                restart_failed = outcome["restart_failed"]
+                if status in {"failed", "timed_out"}:
                     failures += 1
-                    self._capture_failure(session, name)
-                elif result.get("agent_died"):
-                    status, reason = "failed", "Agent 异常退出"
-                    failures += 1
-                    self._capture_failure(session, name)
-                    if session.restart_agent():
-                        self._log("Agent 已重启，继续后续任务。")
-                    else:
-                        self._log("Agent 重启失败，本次运行停止。", "error")
-                        restart_failed = True
-                elif result.get("cancelled"):
-                    status, reason = "cancelled", "已停止"
-                elif result.get("success"):
-                    status, reason = "succeeded", "完成"
-                elif result.get("timed_out"):
-                    status, reason = "timed_out", "超时"
-                    failures += 1
-                    self._capture_failure(session, name)
-                    self._recover_after_failure(session, name)
-                elif self._stamina_exhausted(session):
-                    status, reason = "succeeded", "体力耗尽，已结束"
-                else:
-                    status, reason = "failed", "失败"
-                    failures += 1
-                    self._capture_failure(session, name)
-                    self._recover_after_failure(session, name)
                 with self._lock:
                     self._single["results"].append(
                         {"name": name, "status": status, "duration": duration}
@@ -398,10 +373,6 @@ class RunService:
                         sum(item["duration"] for item in self._single["results"]), 1
                     )
                     self._single["status"] = status
-                self._log(
-                    f"{reason}：{name}（{duration}s）",
-                    "warn" if status != "succeeded" else "info",
-                )
                 if status == "cancelled" or restart_failed:
                     aborted = aborted or restart_failed
                     break
@@ -591,6 +562,67 @@ class RunService:
         except Exception:  # noqa: BLE001
             pass
 
+    def _classify_result(
+        self,
+        session: LiteSession,
+        name: str,
+        result: dict[str, Any],
+        duration: float,
+    ) -> dict[str, Any]:
+        """Turn a run_task result into a status plus the side effects it needs.
+
+        Single place for the ordering: stuck-loop guard, agent death, cancel,
+        success, timeout, stamina dialog, plain failure. Both run loops call
+        this, so a new outcome only has to be handled once.
+        """
+        outcome: dict[str, Any] = {
+            "status": "failed",
+            "reason": "失败",
+            "restart_failed": False,
+        }
+
+        if self._guard_event.is_set() and not self._cancel.is_set():
+            outcome["reason"] = f"疑似死循环（{self._guard_node}）"
+            self._log(
+                f"任务被中止：{name}（{duration}s），"
+                f"节点「{self._guard_node}」重复超限，疑似死循环。",
+                "error",
+            )
+            self._capture_failure(session, name)
+        elif result.get("agent_died"):
+            outcome["reason"] = "Agent 异常退出"
+            self._log(f"Agent 异常退出，任务中止：{name}（{duration}s）。", "error")
+            self._capture_failure(session, name)
+            if session.restart_agent():
+                self._log("Agent 已重启，继续后续任务。")
+            else:
+                self._log("Agent 重启失败，本次运行停止。", "error")
+                outcome["restart_failed"] = True
+        elif result.get("cancelled"):
+            outcome["status"] = "cancelled"
+            outcome["reason"] = "已停止"
+            self._log(f"任务已停止：{name}", "warn")
+        elif result.get("success"):
+            outcome["status"] = "succeeded"
+            outcome["reason"] = "完成"
+            self._log(f"任务完成：{name}（{duration}s）")
+        elif result.get("timed_out"):
+            outcome["status"] = "timed_out"
+            outcome["reason"] = "超时"
+            self._log(f"任务超时：{name}（{duration}s），继续后续任务。", "error")
+            self._capture_failure(session, name)
+            self._recover_after_failure(session, name)
+        elif self._stamina_exhausted(session):
+            outcome["status"] = "succeeded"
+            outcome["reason"] = "体力耗尽，已结束"
+            self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
+        else:
+            self._log(f"任务失败：{name}（{duration}s），继续后续任务。", "error")
+            self._capture_failure(session, name)
+            self._recover_after_failure(session, name)
+
+        return outcome
+
     def _check_connection(self, previous_status: str = "idle") -> None:
         session = self._make_session()
         with self._lock:
@@ -753,53 +785,15 @@ class RunService:
                 task_state["duration"] = duration
                 task_state["attempts"] = result.get("attempt", 1)
 
-                restart_failed = False
-                if self._guard_event.is_set() and not self._cancel.is_set():
-                    task_state["status"] = "failed"
+                outcome = self._classify_result(session, name, result, duration)
+                task_state["status"] = outcome["status"]
+                if outcome["status"] in {"failed", "timed_out"}:
                     failures += 1
-                    self._log(
-                        f"任务被中止：{name}（{duration}s），"
-                        f"节点「{self._guard_node}」重复超限，疑似死循环。",
-                        "error",
-                    )
-                    self._capture_failure(session, name)
-                elif result.get("agent_died"):
-                    task_state["status"] = "failed"
-                    failures += 1
-                    self._log(
-                        f"Agent 异常退出，任务中止：{name}（{duration}s）。", "error"
-                    )
-                    self._capture_failure(session, name)
-                    if session.restart_agent():
-                        self._log("Agent 已重启，继续后续任务。")
-                    else:
-                        self._log("Agent 重启失败，本次运行停止。", "error")
-                        restart_failed = True
-                elif result.get("cancelled"):
-                    task_state["status"] = "cancelled"
+                if outcome["status"] == "cancelled":
                     cancelled = True
-                    self._log(f"任务已停止：{name}", "warn")
                     self._persist()
                     break
-                elif result.get("success"):
-                    task_state["status"] = "succeeded"
-                    self._log(f"任务完成：{name}（{duration}s）")
-                elif result.get("timed_out"):
-                    task_state["status"] = "timed_out"
-                    failures += 1
-                    self._log(f"任务超时：{name}（{duration}s），继续后续任务。", "error")
-                    self._capture_failure(session, name)
-                    self._recover_after_failure(session, name)
-                elif self._stamina_exhausted(session):
-                    task_state["status"] = "succeeded"
-                    self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
-                else:
-                    task_state["status"] = "failed"
-                    failures += 1
-                    self._log(f"任务失败：{name}（{duration}s），继续后续任务。", "error")
-                    self._capture_failure(session, name)
-                    self._recover_after_failure(session, name)
-                if restart_failed:
+                if outcome["restart_failed"]:
                     with self._lock:
                         self._status = "error"
                     aborted = True
