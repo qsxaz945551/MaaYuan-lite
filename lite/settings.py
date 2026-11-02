@@ -18,6 +18,8 @@ DEFAULTS: dict[str, Any] = {
     "shutdown_action": "none",
     "last_training": "修为",
     "last_dungeon": False,
+    "auto_update_resources": True,
+    "auto_update_framework": False,
 }
 
 
@@ -71,6 +73,8 @@ def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
         elif key == "last_training":
             current[key] = str(value)
         elif key == "last_dungeon":
+            current[key] = bool(value)
+        elif key in ("auto_update_resources", "auto_update_framework"):
             current[key] = bool(value)
     config["automation"] = current
     CONFIG_FILE.write_text(

@@ -52,7 +52,7 @@ class ApplyStagedTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         _write_pipeline(self.root / "assets" / "resource" / "base", "old")
-        _write_pipeline(self.root / "assets.next" / "resource" / "base", "new")
+        _write_pipeline(self.root / "assets.next" / "assets" / "resource" / "base", "new")
         _write_interface(self.root / "assets" / "interface.json")
 
     def tearDown(self) -> None:
@@ -82,7 +82,7 @@ class ApplyStagedTest(unittest.TestCase):
         self.assertFalse(result["ok"])
 
     def test_gate_rejects_broken_stage(self) -> None:
-        broken = self.root / "assets.next" / "resource" / "base"
+        broken = self.root / "assets.next" / "assets" / "resource" / "base"
         for path in broken.rglob("*.json"):
             path.unlink()
         (broken / "pipeline").rmdir()

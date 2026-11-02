@@ -15,6 +15,9 @@ from pathlib import Path
 from typing import Any
 
 MANIFEST_NAME = ".source.json"
+# Mirrors the three sets pinned by upstream configure.py. ``ppocr_v4/en_us``
+# ships without det.onnx, so English reuses the main detector — listing it here
+# would make every update fail a 404.
 MODEL_FILES = (
     "model/ocr/det.onnx",
     "model/ocr/rec.onnx",
@@ -22,10 +25,11 @@ MODEL_FILES = (
     "model/ocr/operator_names/det.onnx",
     "model/ocr/operator_names/rec.onnx",
     "model/ocr/operator_names/keys.txt",
-    "model/ocr/en/det.onnx",
     "model/ocr/en/rec.onnx",
     "model/ocr/en/keys.txt",
 )
+# Without these three nothing can recognise Chinese text at all.
+REQUIRED_MODELS = MODEL_FILES[:3]
 
 
 def _git(repo: Path, *args: str) -> str:

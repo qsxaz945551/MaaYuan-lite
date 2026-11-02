@@ -483,3 +483,9 @@ DailyRewards.txt
 /on_error/
 /lite/task-inputs.json
 /lite/runtime-config.dev.json
+/lite/runtime-config.vendor.json
+# 资源更新的暂存与备份目录（切换瞬间存在）
+/assets.next/
+/assets.next.part/
+/assets.prev/
+/dist/

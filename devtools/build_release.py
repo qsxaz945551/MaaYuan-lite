@@ -112,6 +112,16 @@ def main() -> int:
     interface_source = ROOT / "assets" / "interface.json"
     if interface_source.is_file():
         shutil.copy2(interface_source, target / "assets" / "interface.json")
+    # The updater compares this against GitHub; without it every install would
+    # look "unknown" and never report an available update.
+    manifest = ROOT / "assets" / ".source.json"
+    if not manifest.is_file():
+        inherited = ROOT / "vendor" / "MaaYuan-src" / "assets" / ".source.json"
+        if inherited.is_file():
+            manifest = inherited
+            print("  [提示] assets/.source.json 缺失，沿用 vendor 的版本记录")
+    if manifest.is_file():
+        shutil.copy2(manifest, target / "assets" / ".source.json")
     copy_tree(ROOT / "agent", target / "agent", "agent")
     copy_tree(ROOT / "lite", target / "lite", "lite")
     shutil.rmtree(target / "lite" / "tests", ignore_errors=True)

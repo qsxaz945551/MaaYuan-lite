@@ -1,0 +1,19 @@
+{
+  "commit": "c1194728da353ef95ee3eeac3c46427fc441152d",
+  "commitDate": "2026-10-26",
+  "branch": "v5",
+  "modelsCommit": "dabcd4681ac990dc4361de26416d986abd80e4aa",
+  "models": {
+    "model/ocr/det.onnx": "66c0f34caaf432553710fd9973a7134d8cf924db7109310c3d2562dcc39b209d",
+    "model/ocr/rec.onnx": "7dcf6298d77d2a6eb44c1ebeed990826ca895a9c68d955a3eace00763d052949",
+    "model/ocr/keys.txt": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6",
+    "model/ocr/operator_names/det.onnx": "8c3b7ee97913a7942b8565669dc9acbe8846fbbaf4b63e1d7fdb339005574a33",
+    "model/ocr/operator_names/rec.onnx": "31fb844ce3a4aaf13e4bea62ae35f43bd9a509966061980c30db9b248c542a6b",
+    "model/ocr/operator_names/keys.txt": "d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b",
+    "model/ocr/en/rec.onnx": "af88197ae6ab9f391e59f3f26ad8a6851c1cbbebb91d37834fb7bc21f779a8d7",
+    "model/ocr/en/keys.txt": "f27a6aa993c9cb67a588e7ea9aea90bb96b8e51dec6ce98bd7e76c104c1829fe"
+  },
+  "interfaceSha256": "c923602c38faf2c96102ef5d74a45e97b80dd68b30dff15d46eaa2021b44bee6",
+  "pipelineCount": 155,
+  "generatedAt": "2026-11-02 13:44:47"
+}

@@ -3,9 +3,9 @@
   "adb_path": "",
   "adb_serial": "emulator-5554",
   "resource_path": "assets/resource/base",
-  "resource_root": "vendor/MaaYuan-src/assets/resource/base",
-  "agent_root": "vendor/MaaYuan-src/agent",
-  "interface_source": "vendor/MaaYuan-src/assets/interface.json",
+  "resource_root": "",
+  "agent_root": "agent",
+  "interface_source": "",
   "host": "127.0.0.1",
   "port": 8765,
   "automation": {

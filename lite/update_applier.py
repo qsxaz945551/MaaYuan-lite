@@ -3,6 +3,14 @@
 The downloader writes a complete tree to ``assets.next/``; nothing replaces the
 live resources until the gate passes. All moves are renames on the same volume,
 so the switch takes milliseconds and a failure leaves the old tree intact.
+
+A staged tree looks like::
+
+    assets.next/
+        resource/base/...     pipeline, images, models
+        interface.json        upstream task definitions
+        agent/...             Python agent scripts
+        .source.json          which commit this came from
 """
 
 from __future__ import annotations
@@ -11,9 +19,11 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from .source_manifest import MANIFEST_NAME
 from .update_gate import validate
 
 STAGE = "assets.next"
+STAGE_PART = "assets.next.part"
 BACKUP = "assets.prev"
 
 
@@ -26,18 +36,23 @@ def backup_root(project_root: Path) -> Path:
 
 
 def has_staged(project_root: Path) -> bool:
-    return (stage_root(project_root) / "resource" / "base").is_dir()
+    return (stage_root(project_root) / "assets" / "resource" / "base").is_dir()
+
+
+def cleanup_partial(project_root: Path) -> None:
+    """Drop a half-written stage left behind by an interrupted download."""
+    shutil.rmtree(project_root / STAGE_PART, ignore_errors=True)
 
 
 def apply_staged(project_root: Path, interface_source: str = "") -> dict[str, Any]:
-    """Replace assets/resource/base with the staged copy.
+    """Replace live resources with the staged copy.
 
     ``interface_source`` comes from runtime-config: when it is empty the bundle
     owns ``assets/interface.json`` and it is swapped too; a dev checkout that
     points at vendor/ is left alone.
     """
     staged = stage_root(project_root)
-    staged_resource = staged / "resource" / "base"
+    staged_resource = staged / "assets" / "resource" / "base"
     if not staged_resource.is_dir():
         return {"ok": False, "error": f"没有待生效资源：{staged_resource}"}
 
@@ -45,26 +60,50 @@ def apply_staged(project_root: Path, interface_source: str = "") -> dict[str, An
     if problems:
         return {"ok": False, "error": "兼容性门禁未通过", "problems": problems}
 
-    target = project_root / "assets" / "resource" / "base"
+    assets = project_root / "assets"
     backup = backup_root(project_root)
-    interface_staged = staged / "interface.json"
-    interface_target = project_root / "assets" / "interface.json"
-    swap_interface = not str(interface_source or "").strip() and interface_staged.is_file()
+    swap_interface = (
+        not str(interface_source or "").strip()
+        and (staged / "assets" / "interface.json").is_file()
+    )
+    swap_agent = (staged / "agent" / "main.py").is_file()
 
     if backup.exists():
-        shutil.rmtree(backup)
+        shutil.rmtree(backup, ignore_errors=True)
     (backup / "resource").mkdir(parents=True)
 
+    moved: list[tuple[Path, Path]] = []
     try:
+        target = assets / "resource" / "base"
         if target.exists():
-            target.rename(backup / "resource" / "base")
+            saved = backup / "resource" / "base"
+            target.rename(saved)
+            moved.append((saved, target))
         staged_resource.rename(target)
+
         if swap_interface:
-            if interface_target.is_file():
-                shutil.copy2(interface_target, backup / "interface.json")
-            shutil.copy2(interface_staged, interface_target)
+            saved_interface = backup / "interface.json"
+            if (assets / "interface.json").is_file():
+                shutil.copy2(assets / "interface.json", saved_interface)
+            shutil.copy2(staged / "assets" / "interface.json", assets / "interface.json")
+
+        if swap_agent:
+            live_agent = project_root / "agent"
+            if live_agent.exists():
+                saved_agent = backup / "agent"
+                live_agent.rename(saved_agent)
+                moved.append((saved_agent, live_agent))
+            (staged / "agent").rename(live_agent)
+
+        manifest = staged / "assets" / MANIFEST_NAME
+        if manifest.is_file():
+            live_manifest = assets / MANIFEST_NAME
+            if live_manifest.is_file():
+                shutil.copy2(live_manifest, backup / MANIFEST_NAME)
+            shutil.copy2(manifest, live_manifest)
     except OSError as error:
-        _restore(project_root)
+        _undo(moved)
+        _restore_extras(project_root, backup)
         return {"ok": False, "error": f"切换失败，已回滚：{error}"}
 
     shutil.rmtree(staged, ignore_errors=True)
@@ -72,12 +111,48 @@ def apply_staged(project_root: Path, interface_source: str = "") -> dict[str, An
         "ok": True,
         "backup": str(backup),
         "interfaceSwapped": swap_interface,
+        "agentSwapped": swap_agent,
     }
 
 
 def rollback(project_root: Path) -> bool:
     """Undo the last apply_staged call."""
     return _restore(project_root)
+
+
+def _undo(moved: list[tuple[Path, Path]]) -> None:
+    for saved, live in reversed(moved):
+        try:
+            if live.exists():
+                shutil.rmtree(live, ignore_errors=True)
+            if saved.exists():
+                saved.rename(live)
+        except OSError:
+            pass
+
+
+def _restore_extras(project_root: Path, backup: Path) -> None:
+    assets = project_root / "assets"
+    saved_interface = backup / "interface.json"
+    if saved_interface.is_file():
+        try:
+            shutil.copy2(saved_interface, assets / "interface.json")
+        except OSError:
+            pass
+    saved_manifest = backup / MANIFEST_NAME
+    if saved_manifest.is_file():
+        try:
+            shutil.copy2(saved_manifest, assets / MANIFEST_NAME)
+        except OSError:
+            pass
+    saved_agent = backup / "agent"
+    if saved_agent.is_dir():
+        live_agent = project_root / "agent"
+        try:
+            shutil.rmtree(live_agent, ignore_errors=True)
+            saved_agent.rename(live_agent)
+        except OSError:
+            pass
 
 
 def _restore(project_root: Path) -> bool:
@@ -91,9 +166,7 @@ def _restore(project_root: Path) -> bool:
         if target.exists():
             shutil.rmtree(target)
         saved_resource.rename(target)
-        saved_interface = backup / "interface.json"
-        if saved_interface.is_file():
-            shutil.copy2(saved_interface, project_root / "assets" / "interface.json")
+        _restore_extras(project_root, backup)
         shutil.rmtree(backup, ignore_errors=True)
         return True
     except OSError:

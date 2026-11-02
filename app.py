@@ -63,6 +63,86 @@ OPTION_LOCK = threading.Lock()
 _HEALTH_CACHE: dict[str, object] = {"at": 0.0, "data": None}
 
 
+def _managed_resource_root(config: dict) -> Path:
+    value = str(config.get("resource_root") or "").strip()
+    return Path(value) if value else ROOT / "assets" / "resource" / "base"
+
+
+def _bundle_owns_resources(config: dict) -> bool:
+    """True when the running resources are the bundle's own copy.
+
+    A dev checkout points ``resource_root`` at ``vendor/MaaYuan-src``; swapping
+    ``assets/`` there would update a tree the runtime never reads, so the
+    updater refuses instead of pretending to work.
+    """
+    try:
+        return _managed_resource_root(config).resolve() == (
+            ROOT / "assets" / "resource" / "base"
+        ).resolve()
+    except OSError:
+        return False
+
+
+def _apply_staged_resources(config: dict) -> None:
+    """Switch to a downloaded resource tree before anything opens the pipeline."""
+    from lite.update_applier import apply_staged, cleanup_partial, has_staged
+
+    cleanup_partial(ROOT)
+    if not has_staged(ROOT):
+        return
+    if not _bundle_owns_resources(config):
+        print(
+            "检测到待生效资源，但当前配置指向开发目录，跳过自动切换（用 devtools/sync_repo.py --update）",
+            file=sys.stderr,
+        )
+        return
+
+    result = apply_staged(ROOT, str(config.get("interface_source", "")))
+    if not result.get("ok"):
+        print(f"资源切换失败，继续使用旧版本：{result.get('error')}", file=sys.stderr)
+        return
+
+    ok, detail = _rebuild_interface()
+    if not ok:
+        # The gate checked the tree, but a broken interface still means the new
+        # resources cannot be used. Go back rather than run on half a bundle.
+        from lite.update_applier import rollback
+
+        restored = rollback(ROOT)
+        _rebuild_interface()
+        print(
+            f"新资源无法生成 interface（{detail}），"
+            f"{'已回滚到旧版本' if restored else '回滚失败，请手动恢复 assets.prev'}",
+            file=sys.stderr,
+        )
+        return
+
+    print(
+        f"已切换到新资源（agent {'已' if result.get('agentSwapped') else '未'}替换），"
+        f"interface 重建成功",
+        flush=True,
+    )
+
+
+def _rebuild_interface() -> tuple[bool, str]:
+    """Regenerate build/generated/interface.json after resources changed."""
+    try:
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "lite" / "apply_scope.py")],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return False, str(error)
+    if result.returncode != 0:
+        return False, (result.stderr or result.stdout).strip()[:400]
+    return True, result.stdout.strip()[:400]
+
+
 def load_config() -> dict:
     with CONFIG_FILE.open("r", encoding="utf-8-sig") as handle:
         config = json.load(handle)
@@ -324,9 +404,14 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
             if parsed.path == "/api/updates":
                 query = parse_qs(parsed.query)
                 force = query.get("refresh", ["0"])[0] == "1"
+                from lite import downloader
+                from lite.update_applier import has_staged
                 from lite.updater import check_updates
 
-                self._json(check_updates(ROOT, force=force))
+                data = check_updates(ROOT, force=force)
+                data["download"] = downloader.state()
+                data["staged"] = has_staged(ROOT)
+                self._json(data)
                 return
             if parsed.path == "/api/health":
                 query = parse_qs(parsed.query)
@@ -461,6 +546,67 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                         )
                     self._json({"ok": started}, HTTPStatus.OK if started else HTTPStatus.CONFLICT)
                     return
+                if parsed.path == "/api/updates/download":
+                    from lite.downloader import start as start_download
+
+                    result = start_download(ROOT, sha=str(payload.get("sha") or ""))
+                    self._json(result, HTTPStatus.OK if result.get("started") else HTTPStatus.CONFLICT)
+                    return
+                if parsed.path == "/api/updates/apply":
+                    from lite.update_applier import apply_staged
+
+                    if not _bundle_owns_resources(service.config):
+                        self._json(
+                            {
+                                "ok": False,
+                                "error": "当前资源来自开发目录，自动切换只对发布包生效",
+                            },
+                            HTTPStatus.CONFLICT,
+                        )
+                        return
+                    if service.snapshot().get("busy"):
+                        self._json(
+                            {"ok": False, "error": "任务运行中，停止后再切换资源"},
+                            HTTPStatus.CONFLICT,
+                        )
+                        return
+                    result = apply_staged(ROOT, str(service.config.get("interface_source", "")))
+                    if result.get("ok"):
+                        built, detail = _rebuild_interface()
+                        result["interfaceRebuilt"] = built
+                        if not built:
+                            from lite.update_applier import rollback
+
+                            result = {
+                                "ok": False,
+                                "error": f"新资源无法生成 interface，已回滚：{detail}",
+                                "rolledBack": rollback(ROOT),
+                            }
+                            _rebuild_interface()
+                    self._json(
+                        result, HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+                    )
+                    return
+                if parsed.path == "/api/updates/rollback":
+                    from lite.update_applier import rollback
+
+                    if not _bundle_owns_resources(service.config):
+                        self._json(
+                            {"ok": False, "error": "当前资源来自开发目录，无需回滚"},
+                            HTTPStatus.CONFLICT,
+                        )
+                        return
+                    if service.snapshot().get("busy"):
+                        self._json(
+                            {"ok": False, "error": "任务运行中，停止后再回滚"},
+                            HTTPStatus.CONFLICT,
+                        )
+                        return
+                    ok = rollback(ROOT)
+                    if ok:
+                        _rebuild_interface()
+                    self._json({"ok": ok}, HTTPStatus.OK if ok else HTTPStatus.BAD_REQUEST)
+                    return
                 if parsed.path == "/api/check":
                     started = service.check_connection()
                     self._json({"ok": started}, HTTPStatus.OK if started else HTTPStatus.CONFLICT)
@@ -507,6 +653,8 @@ def main() -> int:
 
         return run_selftest(ROOT, config)
 
+    _apply_staged_resources(config)
+
     if not (ROOT / "build" / "generated" / "interface.json").is_file():
         print("Generated interface missing. Run: python lite/apply_scope.py", file=sys.stderr)
         return 1
@@ -547,6 +695,12 @@ def main() -> int:
         from lite.process_guard import watch_parent
 
         watch_parent(args.parent_pid, _shutdown)
+
+    # Resource freshness is checked after the port is open: an offline or slow
+    # network must never delay the window.
+    from lite.downloader import auto_check
+
+    auto_check(ROOT, enabled=bool(settings.get("auto_update_resources", True)))
 
     if not args.no_browser:
         minimized = startup in ("minimize_only", "auto_run_minimized")
