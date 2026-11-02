@@ -41,6 +41,9 @@ ANR_ROI = (0, 400, 720, 300)
 ANR_WAIT_POINT = (303, 688)
 ANR_WAIT_SECONDS = 20.0
 
+# The single source of truth for "how long may this task run".
+# None means no limit (邺城 runs until stopped by hand).
+DEFAULT_TASK_TIMEOUT = 1800
 DEFAULT_TIMEOUTS = {
     "🚀 启动游戏": 300,
     "💰 领月卡福利": 1200,
@@ -56,6 +59,19 @@ DEFAULT_TIMEOUTS = {
     "🔶 日常收尾": 1800,
     "🏰 邺城之战V3": None,  # 无限刷取，无时间上限，靠手动停止
 }
+
+
+def timeout_for(name: str, override: float | None = None) -> float | None:
+    """Resolve a task's time limit — the only place that decides this.
+
+    ``override`` (from a plan item or an API call) wins; otherwise the table;
+    otherwise ``DEFAULT_TASK_TIMEOUT``. ``None`` means "no limit".
+    """
+    if override is not None:
+        return override
+    if name in DEFAULT_TIMEOUTS:
+        return DEFAULT_TIMEOUTS[name]
+    return DEFAULT_TASK_TIMEOUT
 
 
 def _png_size(path: Path) -> tuple[int, int] | None:
@@ -266,9 +282,7 @@ class RunService:
             )
             preview = []
             for item in plan["tasks"]:
-                timeout = item.get("timeout_sec")
-                if timeout is None:
-                    timeout = DEFAULT_TIMEOUTS.get(item["name"], 1800)
+                timeout = timeout_for(item["name"], item.get("timeout_sec"))
                 preview.append(
                     {
                         "name": item["name"],
@@ -348,10 +362,10 @@ class RunService:
             session.request_stop()
         self._log("收到停止请求，正在结束当前任务……", "warn")
 
-    def run_single(self, task_name: str, timeout_sec: float = 1800) -> bool:
+    def run_single(self, task_name: str, timeout_sec: float | None = None) -> bool:
         return self.run_sequence([task_name], timeout_sec)
 
-    def run_sequence(self, task_names: list[str], timeout_sec: float = 1800) -> bool:
+    def run_sequence(self, task_names: list[str], timeout_sec: float | None = None) -> bool:
         """Run tasks outside the daily chain in order; daily progress stays untouched."""
         if self._busy():
             return False
@@ -382,11 +396,7 @@ class RunService:
                     "name": task_name,
                     "entry": task["entry"],
                     "override": apply_pipeline_fixes(task["entry"], override),
-                    "timeout": (
-                        DEFAULT_TIMEOUTS[task_name]
-                        if task_name in DEFAULT_TIMEOUTS
-                        else timeout_sec
-                    ),
+                    "timeout": timeout_for(task_name, timeout_sec),
                 }
             )
 
@@ -966,11 +976,7 @@ class RunService:
                         "status": "pending",
                         "duration": 0,
                         "attempts": 0,
-                        "timeout": (
-                            item.get("timeout_sec")
-                            if item.get("timeout_sec") is not None
-                            else DEFAULT_TIMEOUTS.get(item["name"], 1800)
-                        ),
+                        "timeout": timeout_for(item["name"], item.get("timeout_sec")),
                     }
                     for item in plan["tasks"]
                 ]
