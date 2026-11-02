@@ -232,6 +232,46 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
             self.end_headers()
             self.wfile.write(body)
 
+        def _sse(self, service: RunService) -> None:
+            """Server-sent events: status + new log lines, one event per second.
+
+            The JSON payload mirrors /api/state for the fields a client needs to
+            update live; tasks are still fetched from /api/state because they
+            change rarely and the array is large.
+            """
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            cursor = service.log_cursor()
+            last_ping = time.monotonic()
+            try:
+                while True:
+                    snapshot = service.snapshot(cursor)
+                    logs = snapshot.get("logs") or []
+                    payload = {
+                        "status": snapshot.get("status"),
+                        "currentTask": snapshot.get("currentTask"),
+                        "summary": snapshot.get("summary"),
+                        "logSeq": snapshot.get("logSeq"),
+                        "logs": logs,
+                    }
+                    body = json.dumps(payload, ensure_ascii=False)
+                    self.wfile.write(f"event: state\ndata: {body}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                    if logs:
+                        cursor = int(snapshot.get("logSeq") or cursor)
+                    if time.monotonic() - last_ping > 15:
+                        self.wfile.write(b": ping\n\n")
+                        self.wfile.flush()
+                        last_ping = time.monotonic()
+                    time.sleep(1.0)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                return
+            finally:
+                self.close_connection = True
+
         def _read_json(self) -> dict:
             length = int(self.headers.get("Content-Length", "0"))
             if length <= 0:
@@ -277,6 +317,9 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     self._json(plan)
                 except Exception as error:
                     self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+                return
+            if parsed.path == "/api/events":
+                self._sse(service)
                 return
             if parsed.path == "/api/health":
                 query = parse_qs(parsed.query)
