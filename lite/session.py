@@ -378,6 +378,63 @@ class LiteSession:
             time.sleep(0.1)
         return bool(job.succeeded)
 
+    def _run_action(self, action: dict[str, Any], timeout_ms: int = 4000) -> bool:
+        """Run one action through a throwaway pipeline.
+
+        Used by the unknown-screen recovery: it must not depend on any upstream
+        node, and it must never leave a task running behind it.
+        """
+        if not self._started:
+            return False
+        entry = "lite-action"
+        override = {
+            entry: {
+                "recognition": {"type": "DirectHit", "param": {}},
+                "action": action,
+                "next": [],
+                "pre_delay": 0,
+                "post_delay": 0,
+                "timeout": timeout_ms,
+            }
+        }
+        job = self._tasker.post_task(entry, override)
+        deadline = time.monotonic() + (timeout_ms + 3000) / 1000.0
+        while not job.done:
+            if time.monotonic() >= deadline:
+                self._tasker.post_stop().wait()
+                return False
+            time.sleep(0.1)
+        return bool(job.succeeded)
+
+    def press_back(self) -> bool:
+        """Send the Android back key: the safest way out of an unknown popup."""
+        return self._run_action({"type": "ClickKey", "param": {"key": [4]}})
+
+    def tap(self, x: int, y: int) -> bool:
+        return self._run_action({"type": "Click", "param": {"target": [x, y, 1, 1]}})
+
+    def is_main_screen(self, timeout_ms: int = 1500) -> bool:
+        """Read-only check for the two main-map anchors.
+
+        No ROI: the emulator may be landscape before the game starts, and a
+        hard-coded portrait ROI makes MaaFramework log ``roi is out of range``
+        on every frame until the probe times out. A full-screen template match
+        simply fails on a non-matching resolution.
+        """
+        return self.probe(
+            [
+                {
+                    "type": "TemplateMatch",
+                    "param": {"template": "mainmap/xinzhi.png", "threshold": 0.8},
+                },
+                {
+                    "type": "TemplateMatch",
+                    "param": {"template": "mainmap/judian.png", "threshold": 0.8},
+                },
+            ],
+            timeout_ms,
+        )
+
     def has_stamina_dialog(self) -> bool:
         """True when the stamina refill dialog is on screen.
 
@@ -635,5 +692,23 @@ class LiteSession:
                 pass
 
         self._stop_agent_process()
+
+        # Release native handles while the DLLs are still loaded. Relying on
+        # __del__ at interpreter shutdown runs after MaaFramework has been
+        # unloaded and crashes with an access violation (seen in
+        # AgentClient.__del__). Order: client, tasker, resource, controller.
+        self._sink = None
+        for attribute in ("_agent_client", "_tasker", "_resource", "_controller"):
+            obj = getattr(self, attribute, None)
+            if obj is None:
+                continue
+            setattr(self, attribute, None)
+            finalize = getattr(obj, "__del__", None)
+            if callable(finalize):
+                try:
+                    finalize()
+                except Exception:
+                    pass
+
         self._node_start_callback = None
         self._started = False

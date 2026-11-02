@@ -382,12 +382,14 @@ class RunService:
                     status, reason = "timed_out", "超时"
                     failures += 1
                     self._capture_failure(session, name)
+                    self._recover_after_failure(session, name)
                 elif self._stamina_exhausted(session):
                     status, reason = "succeeded", "体力耗尽，已结束"
                 else:
                     status, reason = "failed", "失败"
                     failures += 1
                     self._capture_failure(session, name)
+                    self._recover_after_failure(session, name)
                 with self._lock:
                     self._single["results"].append(
                         {"name": name, "status": status, "duration": duration}
@@ -547,6 +549,47 @@ class RunService:
             self._log(f"已保存错误截图：runtime/failures/{path.name}", "warn")
         except Exception as error:
             self._log(f"错误截图保存失败：{error}", "warn")
+
+    def _recover_unknown_screen(self, session: LiteSession) -> bool:
+        """Try to leave an unknown popup (new event banner, update notice).
+
+        Upstream's popup list is hard-coded, so a brand-new full-screen activity
+        page is not recognised and the task keeps retrying until it times out.
+        Back key first (no mis-tap risk), then the usual top-right close area.
+        """
+        probe = getattr(session, "is_main_screen", None)
+        back = getattr(session, "press_back", None)
+        tap = getattr(session, "tap", None)
+        if probe is None or back is None:
+            return False
+        try:
+            if probe():
+                return False
+            self._log("检测到未知界面，尝试用返回键退出……", "warn")
+            for _ in range(2):
+                back()
+                time.sleep(1.2)
+                if probe():
+                    self._log("已退出未知界面，回到主界面。", "warn")
+                    return True
+            if tap is not None:
+                self._log("返回键无效，尝试点击右上角关闭区……", "warn")
+                tap(690, 40)
+                time.sleep(1.2)
+                if probe():
+                    self._log("已退出未知界面，回到主界面。", "warn")
+                    return True
+            self._log("未能退出未知界面；如仍有弹窗，请手动处理后点“继续未完成”。", "error")
+        except Exception as error:  # noqa: BLE001 - recovery must never abort a run
+            self._log(f"未知界面清理失败：{error}", "warn")
+        return False
+
+    def _recover_after_failure(self, session: LiteSession, name: str) -> None:
+        try:
+            if self._recover_unknown_screen(session):
+                self._log(f"「{name}」失败后已退出未知界面，后续任务继续。", "warn")
+        except Exception:  # noqa: BLE001
+            pass
 
     def _check_connection(self, previous_status: str = "idle") -> None:
         session = self._make_session()
@@ -746,6 +789,7 @@ class RunService:
                     failures += 1
                     self._log(f"任务超时：{name}（{duration}s），继续后续任务。", "error")
                     self._capture_failure(session, name)
+                    self._recover_after_failure(session, name)
                 elif self._stamina_exhausted(session):
                     task_state["status"] = "succeeded"
                     self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
@@ -754,6 +798,7 @@ class RunService:
                     failures += 1
                     self._log(f"任务失败：{name}（{duration}s），继续后续任务。", "error")
                     self._capture_failure(session, name)
+                    self._recover_after_failure(session, name)
                 if restart_failed:
                     with self._lock:
                         self._status = "error"
