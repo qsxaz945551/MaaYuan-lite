@@ -196,8 +196,8 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 
 | 项           | 状态 | 说明                                                                               |
 | ----------- | -- | -------------------------------------------------------------------------------- |
-| D8 合并两套执行循环 | 🔶 | 结果归类已收敛到 `_classify_result`（成功/超时/失败/取消/Agent 死亡/体力耗尽六分支统一处理）；`TaskExecutor` 类未抽 |
-| D4 状态写入加锁   | 🔶 | 关键写入（`_status`/`_tasks[i]`/`_current_task`）已进锁；未统一成 `_update(**fields)`          |
+| D8 合并两套执行循环 | ✅ | 抽出 `_execute_job`（回调设置 + 死循环护栏 + `run_task` + 归类，39 行）与 `_finalize_run`（终止状态判定，21 行），daily 与 sequence 共用；`_run_daily` 206→179 行、`_run_sequence` 85→74 行 |
+| D4 状态写入加锁 | ✅ | 新增 `_update_task(index, **fields)` 与 `_update_run(...)`；任务的状态/耗时/尝试次数一次写入，`snapshot()` 不再读到「已完成但耗时还是 0」的中间态 |
 | D5 原生对象释放   | ✅  | `stop()` 显式 `post_close` + 置空，不再靠 GC                                             |
 
 ### 3.5 M4 WPF 客户端
@@ -467,8 +467,6 @@ python devtools/run_tests.py      85 项，约 3.5 秒
 
 | ID | 内容 | 收益 |
 |---|---|---|
-| D8 剩余 | 抽 `TaskExecutor`，把 `run_service.py` 里的 `_run_daily` 与 `_run_sequence` 彻底合一 | 改一处不漏一处 |
-| D4 剩余 | 统一 `_update(**fields)` | 消除中间态 |
 | D9 | 超时语义收敛到一处（现在分散在 `DEFAULT_TIMEOUTS` / `daily-profile.timeout_sec` / `run_task(timeout_sec)`） | 排查成本 |
 | D10 | 14 处 `except Exception: pass` 改成至少 `_log(warn)` | 故障不再静默 |
 | D11 | 用 entry 作任务主键，替代 emoji 名 | 上游改字不再静默失效 |
@@ -544,7 +542,7 @@ python devtools/smoke_update.py              # 造暂存树 → 切换 → 回�
 ```
 1. R12 完整日常实跑        ← 无此不能删原版，也拿不到可信性能基线
 2. Q2 故障注入              ← 成本最低、收益最高：验证已有的兜底是否真的生效
-3. D8/D4 剩余重构           ← 在加功能前把调度层收干净
+3. D9/D10 技术债            ← 超时语义收敛、异常不再静默
 4. Q1/Q3/Q4 稳定性          ← 连续跑 + 回退包 + 长稳
 5. 技术债 P2 按需           ← D9/D10/D11 优先（都影响故障可诊断性）
 ```
