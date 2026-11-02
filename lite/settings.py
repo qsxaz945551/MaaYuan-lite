@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = ROOT / "lite" / "runtime-config.json"
+
+# Serialises read-modify-write: the WPF shell can fire two saves (startup and
+# shutdown dropdowns) within the same second and one used to overwrite the other.
+_WRITE_LOCK = threading.Lock()
 
 STARTUP_ACTIONS = ("none", "minimize_only", "auto_run", "auto_run_minimized")
 SHUTDOWN_ACTIONS = ("none", "close_maa", "close_both")
@@ -91,23 +97,35 @@ def load_settings() -> dict[str, Any]:
     return merged
 
 
-def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
-    config = load_config()
-    current = dict(DEFAULTS)
-    current.update(_migrate(dict(config.get("automation") or {})))
-    for key, value in patch.items():
-        if key == "startup_action" and value in STARTUP_ACTIONS:
-            current[key] = value
-        elif key == "shutdown_action" and value in SHUTDOWN_ACTIONS:
-            current[key] = value
-        elif key == "last_training":
-            current[key] = str(value)
-        elif key == "last_dungeon":
-            current[key] = bool(value)
-        elif key in ("auto_update_resources", "auto_update_framework"):
-            current[key] = bool(value)
-    config["automation"] = current
-    CONFIG_FILE.write_text(
-        json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Write through a temp file so a crash never leaves a half-written config.
+
+    ``os.replace`` is atomic on the same volume; a reader either sees the old
+    file or the new one, never a truncated JSON.
+    """
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    return current
+    os.replace(temp, path)
+
+
+def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
+    with _WRITE_LOCK:
+        config = load_config()
+        current = dict(DEFAULTS)
+        current.update(_migrate(dict(config.get("automation") or {})))
+        for key, value in patch.items():
+            if key == "startup_action" and value in STARTUP_ACTIONS:
+                current[key] = value
+            elif key == "shutdown_action" and value in SHUTDOWN_ACTIONS:
+                current[key] = value
+            elif key == "last_training":
+                current[key] = str(value)
+            elif key == "last_dungeon":
+                current[key] = bool(value)
+            elif key in ("auto_update_resources", "auto_update_framework"):
+                current[key] = bool(value)
+        config["automation"] = current
+        _write_json_atomic(CONFIG_FILE, config)
+        return current

@@ -100,6 +100,35 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.load_settings()["startup_action"], "auto_run_minimized")
 
 
+    def test_concurrent_saves_keep_both_fields(self):
+        # Two dropdowns changed within the same second used to lose one write.
+        import threading
+
+        errors = []
+
+        def worker(key, value):
+            try:
+                settings.save_settings({key: value})
+            except Exception as error:  # noqa: BLE001
+                errors.append(error)
+
+        first = threading.Thread(target=worker, args=("startup_action", "minimize_only"))
+        second = threading.Thread(target=worker, args=("shutdown_action", "close_maa"))
+        first.start()
+        second.start()
+        first.join()
+        second.join()
+
+        self.assertEqual(errors, [])
+        values = settings.load_settings()
+        self.assertEqual(values["startup_action"], "minimize_only")
+        self.assertEqual(values["shutdown_action"], "close_maa")
+
+    def test_atomic_write_leaves_no_temp_file(self):
+        settings.save_settings({"last_training": "经验"})
+        leftovers = list(settings.CONFIG_FILE.parent.glob("runtime-config.json.tmp"))
+        self.assertEqual(leftovers, [])
+
 
 if __name__ == "__main__":
     unittest.main()
