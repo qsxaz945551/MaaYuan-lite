@@ -993,6 +993,22 @@ class RunService:
         aborted = False
 
         try:
+            # Fail before touching the emulator: a renamed or missing task means
+            # the plan and the resources disagree, and the old code only found
+            # out mid-run with "Generated interface is missing task".
+            missing = [item["name"] for item in plan["tasks"] if item["name"] not in by_name]
+            if missing:
+                listed = "、".join(missing[:3]) + ("……" if len(missing) > 3 else "")
+                self._update_run(
+                    status="error", summary={"error": f"资源缺少任务：{missing[0]}"}
+                )
+                self._log(
+                    f"任务列表与当前资源不匹配，缺少：{listed}。"
+                    f"请检查资源是否完整（可用「检查更新」重新获取），或重新生成 interface。",
+                    "error",
+                )
+                return
+
             self._log(f"历练选择：{training}；地宫：{'开启' if include_dungeon else '关闭'}")
             self._log("正在连接模拟器并启动 Agent……")
             session.start()

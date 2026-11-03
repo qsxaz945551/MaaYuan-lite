@@ -203,6 +203,7 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 | D10 局部 | ✅ | `_handle_node` / `_handle_node_start` 的异常经注入 logger 进运行日志（原本吞掉会丢轮次计数）；`_recover_after_failure` 也改为记 `warn` |
 | D9 超时收敛 | ✅ | `timeout_for(name, override)` 成为唯一入口（override → 表 → 1800）；`run_single`/`run_sequence` 默认值由 1800 改 `None`，不再隐式覆盖表 |
 | D12 合并实现合一 | ✅ | `lite/deepmerge.py` 统一两处深合并，`copy_values` 区分深浅拷贝；interface 生成结果与改动前逐字节一致 |
+| 运行前完整性校验 | ✅ | 开始日常前先确认 plan 里每个任务都在 interface 里；缺任务时直接报出缺哪几个并中止，不再等跑到第 N 项才抛 `Generated interface is missing task` |
 | D13 设置原子写 | ✅ | `save_settings` 加锁 + `os.replace` 原子替换，并发保存不再丢字段、崩溃不留半写文件 |
 
 ### 3.5 M4 WPF 客户端
@@ -472,7 +473,7 @@ python devtools/run_tests.py      126 项，约 3.5 秒
 
 | ID | 内容 | 收益 |
 |---|---|---|
-| D11 | 用 entry 作任务主键，替代 emoji 名 | 上游改字不再静默失效 |
+| ~~D11~~ | ~~用 entry 作任务主键~~ **评估后不做**：`update_gate` 已覆盖日常链与 task-options 的任务名漂移（更新时拦截），改主键要迁移 28 个任务名的配置，风险高于收益 | — |
 | O2 | adb `device_ready()` 结果缓存 3 秒 | 每任务少一次子进程 |
 | O3 | `/api/screenshot` 加 ETag | 省读盘 |
 | O4 | 按引用裁剪未用任务图片 | 估减 20–30 MB |
