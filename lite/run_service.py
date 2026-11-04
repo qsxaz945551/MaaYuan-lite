@@ -141,6 +141,14 @@ class RunService:
     def set_shutdown_hook(self, hook: Any) -> None:
         self._shutdown_hook = hook
 
+    def note(self, message: str, level: str = "info") -> None:
+        """Public entry for the shell and the parent guard.
+
+        They need to write into the same run log; without it, a service that
+        exits on its own leaves no trace and looks like a crash.
+        """
+        self._log(message, level)
+
     def _log(self, message: str, level: str = "info") -> None:
         with self._lock:
             self._log_seq += 1

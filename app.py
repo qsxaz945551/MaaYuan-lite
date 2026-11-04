@@ -686,7 +686,9 @@ def main() -> int:
     settings = load_settings()
     startup = settings.get("startup_action", "none")
 
-    def _shutdown() -> None:
+    def _shutdown(reason: str = "界面请求关闭") -> None:
+        # A self-kill without a log line is indistinguishable from a crash.
+        service.note(f"服务即将退出：{reason}", "warn")
         _close_app_window()
         server.shutdown()
 
@@ -695,7 +697,7 @@ def main() -> int:
     if args.parent_pid:
         from lite.process_guard import watch_parent
 
-        watch_parent(args.parent_pid, _shutdown)
+        watch_parent(args.parent_pid, _shutdown, logger=service.note)
 
     # Resource freshness is checked after the port is open: an offline or slow
     # network must never delay the window.

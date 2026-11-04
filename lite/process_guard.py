@@ -55,11 +55,36 @@ def parent_alive(pid: int) -> bool:
         _kernel32.CloseHandle(handle)
 
 
-def watch_parent(pid: int, on_exit: Callable[[], None], interval: float = 2.0) -> threading.Thread:
+def watch_parent(
+    pid: int,
+    on_exit: Callable[[], None],
+    interval: float = 2.0,
+    logger: Callable[[str, str], None] | None = None,
+) -> threading.Thread:
+    """Poll the parent and shut down when it is gone.
+
+    ``logger`` matters: a self-kill with no log line is indistinguishable from
+    a crash, and that ambiguity once cost an evening of guessing ("服务自己消失
+    了"). Every exit decision is written down, together with the evidence.
+    """
+
+    def report(message: str) -> None:
+        if logger is not None:
+            try:
+                logger(message, "warn")
+            except Exception:  # noqa: BLE001 - logging must not block exit
+                pass
+
     def loop() -> None:
         while True:
             time.sleep(interval)
             if not parent_alive(pid):
+                # Include the Win32 error so a future false positive is
+                # diagnosable instead of mysterious.
+                report(
+                    f"父进程 {pid} 已不在（OpenProcess/WaitForSingleObject 判定，"
+                    f"last_error={ctypes.get_last_error()}），服务随之关闭。"
+                )
                 try:
                     on_exit()
                 finally:
