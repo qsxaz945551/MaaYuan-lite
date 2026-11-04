@@ -78,6 +78,7 @@ class FakeSession:
         retries=0,
         should_stop=None,
         agent_check=None,
+        stall_check=None,
     ):
         self.calls.append(entry)
         for node in FakeSession.node_events.get(entry, []):

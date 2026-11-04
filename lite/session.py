@@ -454,17 +454,25 @@ class LiteSession:
     def has_stamina_dialog(self) -> bool:
         """True when the stamina refill dialog is on screen.
 
-        The button band sits around y=527 on a 720x1280 capture, so the probe
-        is limited to that strip to avoid matching the words elsewhere in the
-        interface.
+        Measured on a 720x1280 capture (2026-11-04): the title 气力值回复 sits
+        at y~315 and the two buttons at y~450. The old strip (y 496-584) missed
+        the buttons entirely, and the game had renamed 日金市 to 白金币, so the
+        probe never fired and a farming task just failed instead of stopping
+        cleanly.
         """
         return self.probe(
             [
                 {
                     "type": "OCR",
                     "param": {
-                        "expected": ["用道具回复", "用日金市回复", "体力回复"],
-                        "roi": [98, 496, 560, 88],
+                        "expected": [
+                            "用道具回复",
+                            "用日金市回复",
+                            "用白金币回复",
+                            "体力回复",
+                            "气力值回复",
+                        ],
+                        "roi": [60, 280, 620, 230],
                     },
                 }
             ],
@@ -611,6 +619,7 @@ class LiteSession:
         retries: int = 0,
         should_stop: Optional[Callable[[], bool]] = None,
         agent_check: Optional[Callable[[], bool]] = None,
+        stall_check: Optional[Callable[[], bool]] = None,
     ) -> dict[str, Any]:
         if not self._started:
             raise SessionError("Session is not started")
@@ -625,10 +634,18 @@ class LiteSession:
             timed_out = False
             cancelled = False
             agent_died = False
+            stalled = False
             next_agent_check = time.monotonic() + 2.0
             while not job.done:
                 if should_stop is not None and should_stop():
                     cancelled = True
+                    self._tasker.post_stop().wait()
+                    break
+                if stall_check is not None and stall_check():
+                    # No node finished for a long time. The usual cause is a
+                    # dialog nobody recognises covering the screen; waiting for
+                    # the task timeout (30 min) wastes the whole run.
+                    stalled = True
                     self._tasker.post_stop().wait()
                     break
                 if agent_check is not None and time.monotonic() >= next_agent_check:
@@ -668,6 +685,17 @@ class LiteSession:
                     "timed_out": False,
                     "cancelled": False,
                     "agent_died": True,
+                    "attempt": attempt,
+                    "attempts": attempts,
+                }
+            if stalled:
+                return {
+                    "entry": entry,
+                    "success": False,
+                    "timed_out": False,
+                    "cancelled": False,
+                    "agent_died": False,
+                    "stalled": True,
                     "attempt": attempt,
                     "attempts": attempts,
                 }

@@ -27,7 +27,7 @@ from .task_overrides import build_task_override, load_options_snapshot
 # One file, rotated once at 5 MB: a full day of daily runs is a few hundred KB.
 LOG_MAX_BYTES = 5 * 1024 * 1024
 
-STAMINA_TASKS = ("历练", "白鹄", "地宫")
+STAMINA_TASKS = ("历练", "白鹄", "地宫", "鸢报")
 
 
 def _consumes_stamina(name: str) -> bool:
@@ -40,6 +40,14 @@ ANR_KEYWORDS = ("没有响应", "无响应", "没有回應")
 ANR_ROI = (0, 400, 720, 300)
 ANR_WAIT_POINT = (303, 688)
 ANR_WAIT_SECONDS = 20.0
+
+# Close button of the 气力值回复 dialog, measured on a 720x1280 capture.
+STAMINA_DIALOG_CLOSE = (577, 259)
+
+# No node finished for this long ⇒ the screen is probably covered by a dialog
+# nobody recognises. 150 s is well above the slowest normal step and far below
+# the 30-minute task timeout.
+STALL_SECONDS = 150.0
 
 # The single source of truth for "how long may this task run".
 # None means no limit (邺城 runs until stopped by hand).
@@ -99,6 +107,7 @@ class RunService:
         self._cancel = threading.Event()
         self._guard_event = threading.Event()
         self._guard_node = ""
+        self._last_node_time = time.monotonic()
         self._logs: deque[dict[str, Any]] = deque(maxlen=2000)
         self._log_seq = 0
         # Stable per process; clients use a change to resync after a restart.
@@ -505,6 +514,7 @@ class RunService:
         to diverge).
         """
         begin = started if started is not None else time.monotonic()
+        self._last_node_time = begin
         self._log(f"{announce}：{name}")
         session.set_node_callback(self._make_round_handler(entry))
         self._start_guard(session, entry)
@@ -516,6 +526,7 @@ class RunService:
                 retries=retries,
                 should_stop=self._guard_stop,
                 agent_check=session.agent_alive,
+                stall_check=self._stalled,
             )
         finally:
             session.set_node_callback(None)
@@ -650,6 +661,7 @@ class RunService:
         """Watch for a single node looping forever inside this task."""
         self._guard_event.clear()
         self._guard_node = ""
+        self._last_node_time = time.monotonic()
         if marker_labels(entry):
             # Farming tasks are supposed to run long; they are bounded by the
             # user's stop request instead of this guard.
@@ -670,14 +682,21 @@ class RunService:
         session.set_node_start_callback(handle)
 
     def _make_round_handler(self, entry: str):
-        """Log one line per completed round for loop tasks, if configured."""
+        """Count loops for tasks that define markers, and feed the stall watchdog.
+
+        Every task needs the heartbeat: a task stuck behind an unrecognised
+        dialog finishes no nodes at all, which is exactly the signal the
+        watchdog waits for. Returning None for marker-less tasks would leave it
+        blind exactly where it matters most.
+        """
         labels = marker_labels(entry)
-        if not labels:
-            return None
         counter = {"n": 0}
         lock = threading.Lock()
 
         def handle(node_name: str) -> None:
+            self._last_node_time = time.monotonic()
+            if not labels:
+                return
             label = labels.get(node_name)
             if label is None:
                 return
@@ -688,19 +707,40 @@ class RunService:
 
         return handle
 
+    def _stalled(self) -> bool:
+        """True when no node has finished for STALL_SECONDS."""
+        return (time.monotonic() - self._last_node_time) > STALL_SECONDS
+
     def _stamina_exhausted(self, session: LiteSession) -> bool:
-        """True when the stamina refill dialog is on screen.
+        """True when the stamina refill dialog is on screen, and close it.
 
         Farming tasks ("刷到体力耗尽") are supposed to end here; without this
-        check the framework reports a recognition failure instead.
+        check the framework reports a recognition failure instead. The dialog
+        also has to be dismissed, otherwise it keeps covering the screen and
+        every following task fails on the same overlay.
         """
         check = getattr(session, "has_stamina_dialog", None)
         if check is None:
             return False
         try:
-            return bool(check())
+            if not check():
+                return False
         except Exception:
             return False
+
+        tap = getattr(session, "tap", None)
+        back = getattr(session, "press_back", None)
+        if tap is not None:
+            tap(*STAMINA_DIALOG_CLOSE)
+            time.sleep(1.0)
+        try:
+            if check():
+                if back is not None:
+                    back()
+                    time.sleep(0.8)
+        except Exception:  # noqa: BLE001 - dismissing is best effort
+            pass
+        return True
 
     def _capture_failure(self, session: LiteSession, name: str) -> None:
         try:
@@ -844,6 +884,23 @@ class RunService:
             outcome["status"] = "succeeded"
             outcome["reason"] = "完成"
             self._log(f"任务完成：{name}（{duration}s）")
+        elif result.get("stalled"):
+            # Nothing moved for STALL_SECONDS. Check the stamina dialog first:
+            # it is by far the most common cause and ends the task cleanly.
+            if _consumes_stamina(name) and self._stamina_exhausted(session):
+                outcome["status"] = "succeeded"
+                outcome["reason"] = "体力耗尽，已结束"
+                self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
+            else:
+                outcome["status"] = "failed"
+                outcome["reason"] = f"无响应 {int(STALL_SECONDS)} 秒"
+                self._log(
+                    f"任务 {int(STALL_SECONDS)} 秒没有任何进展，判定卡住并中止：{name}。"
+                    "常见原因是未识别的弹窗盖住了界面，可查看错误截图。",
+                    "error",
+                )
+                self._capture_failure(session, name)
+                self._recover_after_failure(session, name)
         elif result.get("timed_out"):
             outcome["status"] = "timed_out"
             outcome["reason"] = "超时"
