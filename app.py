@@ -422,6 +422,9 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                         "startupActions": list(STARTUP_ACTIONS),
                         "shutdownActions": list(SHUTDOWN_ACTIONS),
                         "trainingTypes": ["修为", "铜钱", "经验"],
+                        # 稳定性脚本（devtools/stability_run.py）用它给自己的
+                        # 进程采句柄与内存，省掉从 netstat 反查 PID 的脆弱路径。
+                        "pid": os.getpid(),
                     }
                 )
                 return

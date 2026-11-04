@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import threading
 import subprocess
 import sys
 import time
@@ -725,46 +726,86 @@ class LiteSession:
         assert last_status is not None
         return result
 
+    def _with_timeout(self, label: str, action: Callable[[], Any], seconds: float) -> None:
+        """Run a teardown step with a deadline.
+
+        ``Job.wait()`` and ``AgentClient.disconnect()`` are native calls with no
+        timeout of their own. One of them blocked forever once: the task showed
+        ``completed`` but the worker thread never returned, so ``_busy()`` stayed
+        True and every later run was rejected with 409. Skipping a stuck step
+        leaves a daemon thread behind, which is far cheaper than a service that
+        can never start another task.
+        """
+        finished = threading.Event()
+
+        def runner() -> None:
+            try:
+                action()
+            except Exception:  # noqa: BLE001 - teardown must not raise
+                pass
+            finally:
+                finished.set()
+
+        threading.Thread(target=runner, name=f"teardown-{label}", daemon=True).start()
+        if not finished.wait(seconds):
+            self._note(f"关闭步骤「{label}」超过 {seconds:.0f} 秒未完成，已跳过继续清理。")
+
+    def _guarded_step(self, label: str, action: Callable[[], Any], seconds: float) -> None:
+        """Teardown step with a deadline and a slow-step note.
+
+        Every native call in `stop()` is unbounded. One of them blocked forever
+        once: the task reported ``completed`` but the worker thread never came
+        back, so ``_busy()`` stayed True and every later run got 409. Knowing
+        *which* step is slow is the whole point — hence the per-step timing.
+        """
+        began = time.monotonic()
+        self._with_timeout(label, action, seconds)
+        spent = time.monotonic() - began
+        if spent > 2.0:
+            self._note(f"关闭步骤「{label}」耗时 {spent:.1f} 秒。", "info")
+
     def stop(self) -> None:
         if self._tasker is not None and self._sink_id is not None:
-            try:
-                self._tasker.remove_sink(self._sink_id)
-            except Exception:
-                pass
+            self._guarded_step(
+                "移除监听", lambda: self._tasker.remove_sink(self._sink_id), 5.0
+            )
             self._sink_id = None
         self._node_callback = None
 
         if self._tasker is not None:
             try:
                 if self._tasker.running:
-                    self._tasker.post_stop().wait()
+                    self._guarded_step(
+                        "停止任务", lambda: self._tasker.post_stop().wait(), 8.0
+                    )
             except Exception:
                 pass
 
         if self._agent_client is not None:
-            try:
-                self._agent_client.disconnect()
-            except Exception:
-                pass
+            self._guarded_step("断开 Agent", self._agent_client.disconnect, 8.0)
 
-        self._stop_agent_process()
+        self._guarded_step("结束 Agent 进程", self._stop_agent_process, 15.0)
 
         # Release native handles while the DLLs are still loaded. Relying on
         # __del__ at interpreter shutdown runs after MaaFramework has been
         # unloaded and crashes with an access violation (seen in
         # AgentClient.__del__). Order: client, tasker, resource, controller.
-        self._sink = None
-        for attribute in ("_agent_client", "_tasker", "_resource", "_controller"):
-            obj = getattr(self, attribute, None)
-            if obj is None:
-                continue
-            setattr(self, attribute, None)
-            finalize = getattr(obj, "__del__", None)
-            if callable(finalize):
-                try:
-                    finalize()
-                except Exception:
-                    pass
+        # Wrapped as one step: the destructors are native and can block.
+        def release_native() -> None:
+            self._sink = None
+            for attribute in ("_agent_client", "_tasker", "_resource", "_controller"):
+                obj = getattr(self, attribute, None)
+                if obj is None:
+                    continue
+                setattr(self, attribute, None)
+                finalize = getattr(obj, "__del__", None)
+                if callable(finalize):
+                    try:
+                        finalize()
+                    except Exception:
+                        pass
+
+        self._guarded_step("释放原生对象", release_native, 15.0)
 
         self._node_start_callback = None
         self._started = False
