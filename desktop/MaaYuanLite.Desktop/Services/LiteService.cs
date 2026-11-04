@@ -63,6 +63,14 @@ public sealed class LiteService : IDisposable
             return false;
         }
 
+        // 必须把管道读空。重定向了却不读，MaaFramework 的日志会把 4 KB 缓冲区
+        // 填满，Python 就阻塞在 write 上——表现为任务跑一会儿服务突然不响应。
+        // 服务自己的日志在 runtime/lite.log 与 runtime/debug/maa.log，这里丢弃即可。
+        _process.OutputDataReceived += (_, _) => { };
+        _process.ErrorDataReceived += (_, _) => { };
+        _process.BeginOutputReadLine();
+        _process.BeginErrorReadLine();
+
         for (var attempt = 0; attempt < 100; attempt++)
         {
             token.ThrowIfCancellationRequested();
