@@ -61,6 +61,8 @@ def _adb_run(*args: str) -> str:
         [str(path), "-s", serial, *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     return (result.stdout + result.stderr).strip()
@@ -113,7 +115,11 @@ def inject_agent() -> str:
     if not pid:
         raise SystemExit("agent.json 里没有 PID。")
     result = subprocess.run(
-        ["taskkill", "/F", "/PID", str(pid)], capture_output=True, text=True
+        ["taskkill", "/F", "/PID", str(pid)],
+        capture_output=True,
+        text=True,
+        encoding="gbk",     # taskkill 在中文系统上输出 GBK
+        errors="replace",
     )
     if result.returncode != 0:
         raise SystemExit(f"结束进程失败：{result.stderr or result.stdout}")
@@ -150,7 +156,11 @@ def inject_emulator() -> str:
     ldconsole = Path("D:/Apps Game/LDPlayer14/ldconsole.exe")
     if not ldconsole.is_file():
         raise SystemExit(f"找不到 {ldconsole}；请手动关闭模拟器。")
-    subprocess.run([str(ldconsole), "quit", "--index", "0"], capture_output=True, timeout=60)
+    subprocess.run(
+        [str(ldconsole), "quit", "--index", "0"],
+        capture_output=True,
+        timeout=60,
+    )
     return "模拟器已关闭；恢复：启动雷电后等桌面出现再继续"
 
 
