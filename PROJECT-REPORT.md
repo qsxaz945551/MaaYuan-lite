@@ -467,8 +467,8 @@ python devtools/run_tests.py      147 项，约 3.5 秒
 |---|---|---|
 | **Q1** | 连续 10 次日常 | ✅ 2026-11-05 以「观星 ×10」验证（日常每天只能完整跑一次，用单任务代理跑满 10 轮）：**10/10 成功**，句柄 939 → 933（无单调上涨），内存 439 → 454 MB（区间 437–535，有涨有落）。工具：`python devtools/stability_run.py --spawn --task "🔮 观星" --times 10` |
 | **Q2** | 故障注入 | 杀 agent ✅（12 s 检测 → 1 s 重启 → 后续任务继续）、锁屏 ✅（150 s 看门狗中止 + 截图 + 恢复）、卡死看门狗 ✅（鸢报 124.5 s 干净收场）；断网 ⏭ 跳过（飞行模式会让模拟器系统卡死）。工具：`python devtools/inject_fault.py <fault>` |
-| **Q3** | 回退包 | ✅ 每个版本保留独立目录 + `dist/active.txt` 指针；`dist/启动 Lite.bat` 按指针启动。切换是原子写文件（<0.1 s），`python devtools/release_switch.py switch previous` 来回切，`prune --keep 2` 清理旧版 |
-| **Q4** | 长稳 24 小时 | 无句柄泄漏、无日志爆盘 |
+| **Q3** | 回退包 | ✅ 每版独立目录 + `dist/active.txt` 指针；`dist/启动 Lite.bat` 按指针启动。**实测：切换 + 启动到服务就绪 4 秒**（0.2.1 与 0.2.0 分别验证，`/api/meta` 版本号正确）|
+| **Q4** | 长稳 24 小时 | ⏳ 采样工具就绪：`python devtools/soak_check.py`（采一次追加 `runtime/soak.csv`）与 `--summary`（看趋势：句柄/内存/日志体积）。挂到任务计划里每 15–30 分钟一次即可，不需要模拟器参与 |
 
 ### 7.3 技术债（P2）
 
