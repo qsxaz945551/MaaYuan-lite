@@ -641,6 +641,16 @@ def main() -> int:
     parser.add_argument("--selftest", action="store_true", help="检查运行环境后退出")
     args = parser.parse_args()
 
+    # Native crashes (MaaFramework is C++) leave no Python traceback and no
+    # Windows event if WER is off, so a dying service used to be unattributable.
+    # faulthandler writes the faulting stack to runtime/crash.log instead.
+    import faulthandler
+
+    crash_path = ROOT / "runtime" / "crash.log"
+    crash_path.parent.mkdir(parents=True, exist_ok=True)
+    crash_file = crash_path.open("a", encoding="utf-8")
+    faulthandler.enable(file=crash_file, all_threads=True)
+
     config = load_config()
 
     if args.selftest:

@@ -590,8 +590,8 @@ class RunService:
                         sum(item["duration"] for item in self._single["results"]), 1
                     )
                     self._single["status"] = status
-                if status == "cancelled" or restart_failed:
-                    aborted = aborted or restart_failed
+                if status == "cancelled" or restart_failed or outcome.get("aborted"):
+                    aborted = aborted or restart_failed or bool(outcome.get("aborted"))
                     break
 
             done = len(self._single["results"])
@@ -910,8 +910,19 @@ class RunService:
                     "常见原因是未识别的弹窗盖住了界面，可查看错误截图。",
                     "error",
                 )
-                self._capture_failure(session, name)
-                self._recover_after_failure(session, name)
+                # 横屏 + 完全没进展，几乎只有一种情况：模拟器被重启、游戏没了，
+                # 界面停在横屏桌面。此时继续跑剩下的任务，只是把 150 秒乘以任务数。
+                if self._warn_if_landscape(session):
+                    outcome["aborted"] = True
+                    outcome["reason"] = "横屏桌面，游戏可能未启动"
+                    self._log(
+                        "界面停在横屏桌面（游戏未运行），本轮余下任务不再执行。",
+                        "error",
+                    )
+                    self._capture_failure(session, name)
+                else:
+                    self._capture_failure(session, name)
+                    self._recover_after_failure(session, name)
         elif result.get("timed_out"):
             outcome["status"] = "timed_out"
             outcome["reason"] = "超时"
@@ -939,7 +950,9 @@ class RunService:
         only reports ``roi is out of range``, which reads like a bug in Lite.
         Say it plainly once instead of letting eight tasks fail silently.
         """
-        path = self._last_screenshot
+        path = getattr(self, "_last_screenshot", None)
+        if path is None:
+            return False
         if session is not None:
             try:
                 session.capture_png(path)
@@ -1164,7 +1177,7 @@ class RunService:
                     cancelled = True
                     self._persist()
                     break
-                if outcome["restart_failed"]:
+                if outcome["restart_failed"] or outcome.get("aborted"):
                     self._update_run(status="error")
                     aborted = True
                     self._persist()

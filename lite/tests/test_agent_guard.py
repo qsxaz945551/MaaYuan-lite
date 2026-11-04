@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -57,6 +58,10 @@ class RotateTest(unittest.TestCase):
         for index in range(count):
             path = target / f"f-{index:03d}.log"
             path.write_text("x", encoding="utf-8")
+            # 显式时间戳：同一次循环里创建的文件 mtime 可能完全相同，
+            # 排序就退化成目录顺序，测试会随机成败。
+            stamp = 1_700_000_000 + index
+            os.utime(path, (stamp, stamp))
 
     def test_trims_to_keep(self) -> None:
         self._seed("runtime/logs", 60)
