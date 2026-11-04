@@ -30,7 +30,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from stability_run import Client, spawn_service, stop_service  # noqa: E402
+from stability_run import (  # noqa: E402
+    Client,
+    spawn_service,
+    start_run,
+    stop_service,
+)
 
 KEYWORDS = (
     "任务失败",
@@ -103,7 +108,9 @@ def main() -> int:
     parser.add_argument("--settle", type=float, default=180.0, help="重启后观察多久")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--verify-recovery", action="store_true",
-                        help="模拟器恢复后再跑一个短任务，确认服务没卡死")
+                        help="模拟器恢复后再跑一个任务，确认服务没卡死")
+    parser.add_argument("--recovery-task", default="🚀 启动游戏",
+                        help="第二轮用什么任务验证（默认会自己拉起游戏）")
     args = parser.parse_args()
 
     cfg = config()
@@ -184,7 +191,8 @@ def main() -> int:
         if args.verify_recovery:
             print("\n[5] 恢复后再跑一个短任务")
             try:
-                client.post("/api/run-task", {"names": ["💰 领月卡福利"]})
+                # 用带重试的启动：上一轮的收尾可能还没走完，裸 POST 会误报 409
+                start_run(client, args.recovery_task)
                 deadline = time.monotonic() + 240
                 while time.monotonic() < deadline:
                     state = client.get("/api/state?since=0")
@@ -198,6 +206,12 @@ def main() -> int:
             except urllib.error.HTTPError as error:
                 print(f"    ⚠ 第二轮被拒绝：{error}（疑似 409 残留）")
                 code = 1
+        crash = ROOT / "runtime" / "crash.log"
+        if crash.is_file() and crash.stat().st_size:
+            print("\n[6] runtime/crash.log 有新内容")
+            print("\n".join(crash.read_text(encoding="utf-8").splitlines()[-25:]))
+        else:
+            print("\n[6] runtime/crash.log 为空：服务不是原生崩溃退出的")
     finally:
         stop_service(service)
     return code

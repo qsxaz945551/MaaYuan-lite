@@ -790,22 +790,52 @@ class LiteSession:
         # __del__ at interpreter shutdown runs after MaaFramework has been
         # unloaded and crashes with an access violation (seen in
         # AgentClient.__del__). Order: client, tasker, resource, controller.
-        # Wrapped as one step: the destructors are native and can block.
-        def release_native() -> None:
-            self._sink = None
-            for attribute in ("_agent_client", "_tasker", "_resource", "_controller"):
-                obj = getattr(self, attribute, None)
-                if obj is None:
-                    continue
+        #
+        # These destructors are native and can block forever:
+        # MaaAgentClientDestroy waits on a thread that never joins once the
+        # device died mid-task (stack captured in runtime/crash.log). Blocking
+        # `stop()` on that left `_busy()` true, so the next run was rejected
+        # with 409 until the timeout expired. Destroy in background instead:
+        # order is kept when it works, and a stuck destructor only leaks itself.
+        self._sink = None
+        pending = {}
+        for attribute in ("_agent_client", "_tasker", "_resource", "_controller"):
+            obj = getattr(self, attribute, None)
+            if obj is not None:
+                pending[attribute] = obj
                 setattr(self, attribute, None)
+
+        if pending:
+            agent_done = threading.Event()
+
+            def destroy(name: str, obj: Any) -> None:
                 finalize = getattr(obj, "__del__", None)
                 if callable(finalize):
                     try:
                         finalize()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - teardown must not raise
                         pass
+                if name == "_agent_client":
+                    agent_done.set()
 
-        self._guarded_step("释放原生对象", release_native, 15.0)
+            if "_agent_client" in pending:
+                threading.Thread(
+                    target=destroy, args=("_agent_client", pending["_agent_client"]),
+                    name="release-agent", daemon=True,
+                ).start()
+
+            def release_rest() -> None:
+                # 正常情况瞬间返回；agent 析构卡住时最多等 3 秒，
+                # 再按原顺序销毁其余对象（此时顺序只能算尽力而为）。
+                agent_done.wait(3.0)
+                for name in ("_tasker", "_resource", "_controller"):
+                    obj = pending.get(name)
+                    if obj is not None:
+                        destroy(name, obj)
+
+            threading.Thread(
+                target=release_rest, name="release-runtime", daemon=True
+            ).start()
 
         self._node_start_callback = None
         self._started = False
