@@ -204,6 +204,7 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 | D9 超时收敛 | ✅ | `timeout_for(name, override)` 成为唯一入口（override → 表 → 1800）；`run_single`/`run_sequence` 默认值由 1800 改 `None`，不再隐式覆盖表 |
 | D12 合并实现合一 | ✅ | `lite/deepmerge.py` 统一两处深合并，`copy_values` 区分深浅拷贝；interface 生成结果与改动前逐字节一致 |
 | 运行前完整性校验 | ✅ | 开始日常前先确认 plan 里每个任务都在 interface 里；缺任务时直接报出缺哪几个并中止，不再等跑到第 N 项才抛 `Generated interface is missing task` |
+| 会话收尾超时 | ✅ | `session.stop()` 的每个原生调用都带超时（移除监听 5 s / 停止任务 8 s / 断开 Agent 8 s / 结束 Agent 进程 15 s / 释放原生对象 15 s），超时记 warn 后继续。修复前：`MaaTaskerDestroy` 一旦阻塞，工作线程永不返回，`_busy()` 恒为真，**服务跑完一次后所有后续请求都是 409** |
 | D13 设置原子写 | ✅ | `save_settings` 加锁 + `os.replace` 原子替换，并发保存不再丢字段、崩溃不留半写文件 |
 
 ### 3.5 M4 WPF 客户端
@@ -464,7 +465,7 @@ python devtools/run_tests.py      147 项，约 3.5 秒
 
 | ID | 内容 | 验收 |
 |---|---|---|
-| **Q1** | 连续 10 次日常 | 成功率 100%；句柄数、内存不单调上涨 |
+| **Q1** | 连续 10 次日常 | ✅ 2026-11-05 以「观星 ×10」验证（日常每天只能完整跑一次，用单任务代理跑满 10 轮）：**10/10 成功**，句柄 939 → 933（无单调上涨），内存 439 → 454 MB（区间 437–535，有涨有落）。工具：`python devtools/stability_run.py --spawn --task "🔮 观星" --times 10` |
 | **Q2** | 故障注入 | 杀 agent ✅（12 s 检测 → 1 s 重启 → 后续任务继续）、锁屏 ✅（150 s 看门狗中止 + 截图 + 恢复）、卡死看门狗 ✅（鸢报 124.5 s 干净收场）；断网 ⏭ 跳过（飞行模式会让模拟器系统卡死）。工具：`python devtools/inject_fault.py <fault>` |
 | **Q3** | 回退包 | ✅ 每个版本保留独立目录 + `dist/active.txt` 指针；`dist/启动 Lite.bat` 按指针启动。切换是原子写文件（<0.1 s），`python devtools/release_switch.py switch previous` 来回切，`prune --keep 2` 清理旧版 |
 | **Q4** | 长稳 24 小时 | 无句柄泄漏、无日志爆盘 |
