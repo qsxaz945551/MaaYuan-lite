@@ -892,10 +892,13 @@ class RunService:
                 outcome["reason"] = "体力耗尽，已结束"
                 self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
             else:
+                # 记录实际停顿秒数：阈值只是下限，真实值能区分「刚好超线」
+                # 和「彻底卡死」，复跑对比时有用。
+                stalled_for = int(time.monotonic() - self._last_node_time)
                 outcome["status"] = "failed"
-                outcome["reason"] = f"无响应 {int(STALL_SECONDS)} 秒"
+                outcome["reason"] = f"无响应 {stalled_for} 秒"
                 self._log(
-                    f"任务 {int(STALL_SECONDS)} 秒没有任何进展，判定卡住并中止：{name}。"
+                    f"任务已有 {stalled_for} 秒没有任何进展，判定卡住并中止：{name}。"
                     "常见原因是未识别的弹窗盖住了界面，可查看错误截图。",
                     "error",
                 )

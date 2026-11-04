@@ -109,6 +109,18 @@ class StallClassificationTest(unittest.TestCase):
         self.assertEqual(outage["status"], "failed")
         self.assertIn("无响应", outage["reason"])
 
+    def test_reason_reports_actual_stall_duration(self) -> None:
+        # 阈值是 150 秒，但真正卡了 400 秒要如实写出来。
+        import time as _time
+
+        service = make_service()
+        service._last_node_time = _time.monotonic() - 400
+        outage = service._classify_result(
+            NoDialogSession(), "🚀 启动游戏", {"stalled": True}, 400.0
+        )
+        self.assertIn("40", outage["reason"])  # 400 ± 取整
+        self.assertNotIn("150", outage["reason"])
+
     def test_stalled_with_stamina_dialog_ends_cleanly(self) -> None:
         service = make_service()
         session = StaminaSession()
