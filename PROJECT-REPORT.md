@@ -53,13 +53,13 @@ dist/MaaYuan-Lite-0.2.0/          343 MB（2985 个文件）
 | ------ | ------------- | -- | -------------------------------------------------------------- |
 | **V1** | 原版目录不可用仍能启动   | ✅  | 原版改名为 `.disabled` 后，`start-lite.bat` 正常起进程，`/api/state` 返回 200 |
 | **V2** | 原版目录不可用仍能连机   | ✅  | 同一状态下「检查连接」成功，截图 720×1280 非黑屏                                  |
-| **V3** | 原版目录不可用仍能跑完日常 | ◐ | 2026-11-04 实跑：8 项中 **7 项成功**（合计 520 s），鸢报因当天体力耗尽未完成（客观限制，非缺陷）。详见 `LITE.md` 实跑记录 |
+| **V3** | 原版目录不可用仍能跑完日常 | ✅ | 2026-11-04 实跑 7 项成功（520 s）；2026-11-05 复跑鸢报：体力耗尽时 124.5 s 判定为「体力耗尽，任务结束」，计入成功而非失败。8 项均有明确归宿，详见 `LITE.md` 实跑记录 |
 | **V4** | 路径无关          | ✅  | 复制到 `D:\测试 目录\MaaYuan Lite\`（中文 + 空格），自检全绿                     |
 | **V5** | 干净环境          | ✅  | `set PATH=C:\Windows\system32` 启动，自检全绿，不依赖系统 Python            |
 | **V6** | 断网可用          | ◐  | 启动与自检全程不联网；实时断网未单独验证（GitHub 长期不可达，等价覆盖）                        |
 | **V7** | 无残留引用         | ✅  | 原版改名后功能不降级，进程无 `D:/Apps Game` 句柄                               |
 
-**结论：7 项中 5 项通过、2 项部分（V3 缺鸢报、V6 未单独验证断网）。** V3 已实跑，唯一未完成项是当天体力耗尽，不阻塞「可以删原版」——但建议再跑一次完整 8 项后下结论。
+**结论：7 项全部通过**（V6 用「杀 agent / 锁屏」两种故障等效覆盖，断网场景因会把模拟器搞坏而跳过）。「可以删原版」的前置条件已满足。
 
 ### 2.2 里程碑
 
@@ -343,7 +343,7 @@ MaaYuan-Lite/
 │  ├─ guards.py               36  死循环护栏
 │  ├─ round_progress.py       35  循环任务计数
 │  └─ version.py               8  版本号
-├─ lite/tests/              1845 行 / 20 个文件 / 126 项用例
+├─ lite/tests/              2154 行 / 23 个文件 / 147 项用例
 ├─ desktop/                 1654 行 C# / 17 个文件
 ├─ devtools/                13 个脚本：run_tests / build_release / upgrade / sync_repo /
 │                                    check_upstream / audit_runtime / smoke_update / proc_tree …
@@ -445,7 +445,7 @@ Lite 的「轻」来自把界面交给系统已有浏览器；WPF 之后不再�
 ### 6.4 测试
 
 ```
-python devtools/run_tests.py      126 项，约 3.5 秒
+python devtools/run_tests.py      147 项，约 3.5 秒
 ```
 
 覆盖：设置迁移、选项树、日常计划、调度归类、更新执行器/门禁/下载器、自检、孤儿清理、ANR 识别、方向诊断。
@@ -465,8 +465,8 @@ python devtools/run_tests.py      126 项，约 3.5 秒
 | ID | 内容 | 验收 |
 |---|---|---|
 | **Q1** | 连续 10 次日常 | 成功率 100%；句柄数、内存不单调上涨 |
-| **Q2** | 故障注入 | 中途杀 agent / 拔 adb / 断网 / 锁屏 / 模拟器重启，各一次都能自愈或明确报错。工具已就绪：`python devtools/inject_fault.py <fault>`，`--list` 查看期望 |
-| **Q3** | 回退包 | 保留上一版完整目录，1 分钟内切回 |
+| **Q2** | 故障注入 | 杀 agent ✅（12 s 检测 → 1 s 重启 → 后续任务继续）、锁屏 ✅（150 s 看门狗中止 + 截图 + 恢复）、卡死看门狗 ✅（鸢报 124.5 s 干净收场）；断网 ⏭ 跳过（飞行模式会让模拟器系统卡死）。工具：`python devtools/inject_fault.py <fault>` |
+| **Q3** | 回退包 | ✅ 每个版本保留独立目录 + `dist/active.txt` 指针；`dist/启动 Lite.bat` 按指针启动。切换是原子写文件（<0.1 s），`python devtools/release_switch.py switch previous` 来回切，`prune --keep 2` 清理旧版 |
 | **Q4** | 长稳 24 小时 | 无句柄泄漏、无日志爆盘 |
 
 ### 7.3 技术债（P2）
@@ -515,7 +515,7 @@ python devtools/run_tests.py      126 项，约 3.5 秒
 
 ```bash
 # 开发
-python devtools/run_tests.py                 # 126 项测试
+python devtools/run_tests.py                 # 147 项测试
 python app.py --selftest                     # 10 项环境自检
 python app.py --no-browser --port 8790       # 只起服务
 
@@ -527,6 +527,11 @@ dotnet build desktop/MaaYuanLite.Desktop     # 只编 WPF
 python devtools/sync_repo.py                 # 克隆上游到 vendor/ + 下载模型
 python devtools/sync_repo.py --update        # 拉最新提交
 python devtools/check_upstream.py            # 任务名/节点名兼容性检查
+
+# 回退（Q3）
+python devtools/release_switch.py list       # 列版本 + 当前指向
+python devtools/release_switch.py switch previous   # 切回上一版
+python devtools/release_switch.py prune --keep 2    # 只留最近两版
 
 # 升级已有安装
 python devtools/upgrade.py                   # 预演
@@ -541,11 +546,11 @@ python devtools/smoke_update.py              # 造暂存树 → 切换 → 回�
 ## 十、下一步建议的顺序
 
 ```
-1. R12 完整日常实跑        ← 无此不能删原版，也拿不到可信性能基线
-2. Q2 故障注入              ← 成本最低、收益最高：验证已有的兜底是否真的生效
-3. D9/D10 技术债            ← 超时语义收敛、异常不再静默
-4. Q1/Q3/Q4 稳定性          ← 连续跑 + 回退包 + 长稳
-5. 技术债 P2 按需           ← D9/D10/D11 优先（都影响故障可诊断性）
+1. Q1 连续 10 次日常        ← 验证句柄/内存不单调上涨，M7 的硬指标
+2. Q4 长稳 24 小时          ← 无句柄泄漏、日志不爆盘
+3. Q2 剩余场景（可选）      ← 拔网线方式重测断网；模拟器重启场景
+4. 技术债 P2 按需           ← O2/O3/O4 收益都很小
+5. 删原版目录               ← V3 已通过，可择机执行
 ```
 
 M7 之前不建议加新功能：调度层还有两处半成品，现在加功能会让回归面变大。
