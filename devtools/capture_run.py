@@ -52,7 +52,11 @@ def main() -> int:
     parser.add_argument("--exe", default="MaaYuan")
     parser.add_argument("--interval", type=float, default=5.0)
     parser.add_argument("--duration", type=float, default=1500.0)
-    parser.add_argument("--log-root", default="D:/Apps Game/MaaYuan-win-x86_64-v2.1.1-beta.6/logs")
+    parser.add_argument(
+        "--log-root",
+        required=True,
+        help="原版日志目录；原版目录已于 2026-11-05 删除，必须显式指定",
+    )
     parser.add_argument("--out", default="")
     args = parser.parse_args()
 

@@ -85,7 +85,7 @@ python lite/apply_scope.py
 
 双击项目根目录的 `start-lite.bat`，会打开 **WPF 客户端**（`MaaYuanLite.Desktop.exe`）。它自己拉起 Python 服务，窗口关闭时服务一并退出。
 
-- 运行时自带：`runtime_env/`（CPython 3.12.10 + maa 5.6.0 + 模型），**不依赖任何原版 MaaYuan 安装**。原版目录已在 2026-11-02 改名，Lite 仍可正常连接、截图、跑任务。
+- 运行时自带：`runtime_env/`（CPython 3.12.10 + maa 5.6.0 + 模型），**不依赖任何原版 MaaYuan 安装**。原版目录先在 2026-11-02 改名停用，**2026-11-05 已永久删除**；删除后自检 0 警告、实跑任务正常。旧版配置的三个小文件备份在 `build/original-config-backup/`。
 - 想看旧的浏览器控制台：`start-lite.bat --legacy`，默认浏览器打开 `http://127.0.0.1:8765`。
 - 首次先点“检查连接”：只连接、截图，不点击游戏、不执行任务。
 - 再在左栏选「历练」类型、确认地宫开关，点“开始日常”。
