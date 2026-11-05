@@ -8,6 +8,7 @@ what actually happened.
 
 from __future__ import annotations
 
+import tempfile
 import threading
 import time
 import unittest
@@ -140,6 +141,54 @@ class StallClassificationTest(unittest.TestCase):
         )
         self.assertEqual(outcome["status"], "failed")
         self.assertEqual(session.taps, [])
+
+
+class LandscapeSession(NoDialogSession):
+    """capture_png 写一张横屏帧——模拟器被重启、游戏没了时的真实形态。"""
+
+    def __init__(self, size: tuple[int, int] = (1280, 720)) -> None:
+        self.size = size
+
+    def capture_png(self, path):
+        from PIL import Image
+
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", self.size, (20, 20, 20)).save(path)
+        return True
+
+
+class LandscapeAbortTest(unittest.TestCase):
+    """横屏 + 完全无进展 ⇒ 游戏没在跑，整轮直接中止。
+
+    否则日常链会把 150 秒乘以任务数：8 项约 20 分钟，全都花在等一个不会
+    出现的界面上。
+    """
+
+    def _classify(self, size: tuple[int, int]):
+        service = make_service()
+        self.addCleanup(lambda: None)
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = Path(temp.name)
+        service.project_root = root
+        service._project_root = root
+        service._last_screenshot = root / "last.png"
+        outcome = service._classify_result(
+            LandscapeSession(size), "🚀 启动游戏", {"stalled": True}, 150.0
+        )
+        return service, outcome
+
+    def test_landscape_stall_aborts(self) -> None:
+        service, outcome = self._classify((1280, 720))
+        self.assertEqual(outcome["status"], "failed")
+        self.assertTrue(outcome.get("aborted"), "横屏时应当中止整轮")
+        messages = [line["message"] for line in service._logs]
+        self.assertTrue(any("横屏" in text for text in messages), messages)
+
+    def test_portrait_stall_does_not_abort(self) -> None:
+        service, outcome = self._classify((720, 1280))
+        self.assertEqual(outcome["status"], "failed")
+        self.assertFalse(outcome.get("aborted"), "竖屏时只是普通失败，应继续下一项")
 
 
 if __name__ == "__main__":

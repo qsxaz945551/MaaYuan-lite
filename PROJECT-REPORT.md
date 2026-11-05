@@ -345,7 +345,7 @@ MaaYuan-Lite/
 │  ├─ guards.py               36  死循环护栏
 │  ├─ round_progress.py       35  循环任务计数
 │  └─ version.py               8  版本号
-├─ lite/tests/              2154 行 / 23 个文件 / 147 项用例
+├─ lite/tests/              2361 行 / 25 个文件 / 155 项用例
 ├─ desktop/                 1654 行 C# / 17 个文件
 ├─ devtools/                13 个脚本：run_tests / build_release / upgrade / sync_repo /
 │                                    check_upstream / audit_runtime / smoke_update / proc_tree …
@@ -447,7 +447,7 @@ Lite 的「轻」来自把界面交给系统已有浏览器；WPF 之后不再�
 ### 6.4 测试
 
 ```
-python devtools/run_tests.py      147 项，约 3.5 秒
+python devtools/run_tests.py      155 项，约 6 秒
 ```
 
 覆盖：设置迁移、选项树、日常计划、调度归类、更新执行器/门禁/下载器、自检、孤儿清理、ANR 识别、方向诊断。
@@ -517,7 +517,7 @@ python devtools/run_tests.py      147 项，约 3.5 秒
 
 ```bash
 # 开发
-python devtools/run_tests.py                 # 147 项测试
+python devtools/run_tests.py                 # 155 项测试
 python app.py --selftest                     # 10 项环境自检
 python app.py --no-browser --port 8790       # 只起服务
 
