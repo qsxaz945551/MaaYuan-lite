@@ -328,8 +328,8 @@ pipeline 节点数、interface 任务数、日常链任务名、`pipeline_fixes`
 ```
 MaaYuan-Lite/
 ├─ app.py                    745 行  HTTP 服务、启动编排、进程守卫、更新接线
-├─ lite/                    4416 行 / 22 个模块
-│  ├─ run_service.py        1100  调度核心：任务循环、结果归类、兜底恢复、日志
+├─ lite/                    4682 行 / 22 个模块
+│  ├─ run_service.py        1263  调度核心：任务循环、结果归类、兜底恢复、日志
 │  ├─ session.py             729  MaaFramework 会话：Resource/Controller/Tasker/Agent 生命周期
 │  ├─ downloader.py          419  资源下载与暂存
 │  ├─ selftest.py            309  10 项环境自检
