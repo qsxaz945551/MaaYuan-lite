@@ -665,6 +665,20 @@ def main() -> int:
         print("Generated interface missing. Run: python lite/apply_scope.py", file=sys.stderr)
         return 1
 
+    # 旧版本只存了选项索引。趁现在这份 interface 还认得这个索引，把所选值的名字
+    # 一并记下来；以后上游重排 cases 时，光靠索引就会静默选到别的值。
+    from lite.task_options_service import backfill_labels
+
+    try:
+        interface_data = json.loads(
+            (ROOT / "build" / "generated" / "interface.json").read_text(encoding="utf-8")
+        )
+        filled = backfill_labels(interface_data)
+        if filled:
+            print(f"已为 {filled} 个选项选择补记名称（task-options.json）", flush=True)
+    except (OSError, ValueError) as error:
+        print(f"选项名称补记失败（不影响启动）：{error}", file=sys.stderr)
+
     # Housekeeping before anything opens a socket: an agent orphaned by a crash
     # would otherwise steal the adb connection from this run.
     from lite import agent_guard

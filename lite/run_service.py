@@ -405,9 +405,15 @@ class RunService:
             )
             if task is None or task.get("entry") == "stop":
                 raise ValueError(f"Unknown task: {task_name}")
+            notes: list[str] = []
             override = build_task_override(
-                interface, task, options.get(task_name, {}), inputs.get(task_name, {})
+                interface,
+                task,
+                options.get(task_name, {}),
+                inputs.get(task_name, {}),
+                notes,
             )
+            self._report_option_notes(task_name, notes)
             jobs.append(
                 {
                     "name": task_name,
@@ -838,6 +844,15 @@ class RunService:
             self._log(f"未知界面清理失败：{error}", "warn")
         return False
 
+    def _report_option_notes(self, name: str, notes: list[str]) -> None:
+        """把选项解析过程中的偏差写进运行日志。
+
+        这些偏差意味着「保存的选择和当前资源对不上」，例如上游重排了可选值，
+        老索引指向了别的值。不报出来就只会表现为「任务跑了个别的关卡」。
+        """
+        for note in notes:
+            self._log(f"任务「{name}」的选项有变化：{note}", "warn")
+
     def _back_to_main(self, session: LiteSession, name: str) -> None:
         """Return to the main screen after a clean stamina stop.
 
@@ -1167,12 +1182,14 @@ class RunService:
                         continue
 
                 selected = options.get(name, {})
+                option_notes: list[str] = []
                 override = apply_pipeline_fixes(
                     task_def["entry"],
                     build_task_override(
-                        interface, task_def, selected, inputs.get(name, {})
+                        interface, task_def, selected, inputs.get(name, {}), option_notes
                     ),
                 )
+                self._report_option_notes(name, option_notes)
                 timeout = task_state["timeout"]
                 retries = int(item.get("retries", 0))
                 outcome, duration, result = self._execute_job(

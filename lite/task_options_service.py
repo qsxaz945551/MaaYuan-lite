@@ -54,15 +54,76 @@ def default_index(group: dict[str, Any]) -> int:
     return 0
 
 
-def resolve_index(group: dict[str, Any], selected: dict[str, int] | None, name: str) -> int:
+def resolve_index(
+    group: dict[str, Any],
+    selected: dict[str, Any] | None,
+    name: str,
+    note: Any = None,
+) -> int:
+    """Resolve one option group to a case index.
+
+    保存的是索引，而索引的含义由上游 ``interface.json`` 里 ``cases`` 的顺序决定。
+    上游一旦增删或重排某个选项的可选值，同一个数字就指向别的值——任务照常开始、
+    照常成功，只是选错了（例如「王庭贸易-最高」变成「西域贸易」），日志里看不出来。
+
+    所以新格式同时记下所选值的**名字**：``{"index": 3, "label": "王庭贸易-最高"}``。
+    解析时优先按名字找回索引，名字找不到才退回索引，并通过 ``note`` 报告。
+    旧格式（纯 int）仍然可读，会在保存时自动升级。
+    """
     cases = group.get("cases") or []
     if not cases:
         return 0
-    value = (selected or {}).get(name)
-    index = default_index(group) if value is None else int(value)
+
+    index, label = _split_value((selected or {}).get(name))
+
+    if label is not None:
+        found = _label_index(cases, label)
+        if found is not None:
+            return found
+        _say(
+            note,
+            f"选项「{name}」原先选的是「{label}」，当前资源里找不到这个值，"
+            f"已退回索引 {index if index is not None else '默认'}。",
+        )
+
+    if index is None:
+        return default_index(group)
     if index < 0 or index >= len(cases):
-        index = default_index(group)
+        _say(note, f"选项「{name}」保存的索引 {index} 超出范围，已改用默认值。")
+        return default_index(group)
     return index
+
+
+def _split_value(value: Any) -> tuple[int | None, str | None]:
+    """Accept both the new ``{"index", "label"}`` form and a legacy int."""
+    if isinstance(value, dict):
+        index = value.get("index")
+        label = value.get("label")
+        return (
+            index if isinstance(index, int) and not isinstance(index, bool) else None,
+            label if isinstance(label, str) and label else None,
+        )
+    if isinstance(value, bool):
+        return None, None
+    if isinstance(value, int):
+        return value, None
+    return None, None
+
+
+def _label_index(cases: list[dict[str, Any]], label: str) -> int | None:
+    for index, case in enumerate(cases):
+        if case.get("name") == label:
+            return index
+    return None
+
+
+def _say(note: Any, message: str) -> None:
+    if note is None:
+        return
+    try:
+        note(message)
+    except Exception:  # noqa: BLE001 - 报告问题不能影响解析
+        pass
 
 
 def group_index_map(interface: dict[str, Any], task: dict[str, Any]) -> dict[str, str]:
@@ -237,5 +298,44 @@ def apply_change(
         return selection, inputs
 
     index = _validate_group_index(group, payload.get("index"), group_name)
-    selection.setdefault(task_name, {})[group_name] = index
+    cases = group.get("cases") or []
+    # 索引和名字一起存：上游重排 cases 后，光靠索引会指向别的值（静默选错）。
+    label = cases[index].get("name") if index < len(cases) else None
+    selection.setdefault(task_name, {})[group_name] = {"index": index, "label": label}
     return selection, inputs
+
+
+def backfill_labels(
+    interface: dict[str, Any], path: Path | None = None
+) -> int:
+    """给旧格式（纯 int）的条目补上所选值的名字。
+
+    升级到 0.2.2 之前保存的选择只有索引。趁当前 interface 还认得这个索引，
+    把名字记下来，以后上游重排就不会指错。只补能确定的条目，其它原样保留。
+    """
+    target = path or DEFAULT_SELECTION
+    selection = load_json(target)
+    if not selection:
+        return 0
+
+    groups = interface.get("option", {})
+    changed = 0
+    for task_name, options in selection.items():
+        if not isinstance(options, dict):
+            continue
+        for group_name, value in list(options.items()):
+            if isinstance(value, dict):
+                continue
+            group = groups.get(group_name)
+            if not isinstance(group, dict):
+                continue
+            cases = group.get("cases") or []
+            index, _label = _split_value(value)
+            if index is None or not (0 <= index < len(cases)):
+                continue
+            options[group_name] = {"index": index, "label": cases[index].get("name")}
+            changed += 1
+
+    if changed:
+        write_json(target, selection)
+    return changed
