@@ -10,6 +10,7 @@ from lite.task_options_service import (
     describe_tasks,
     load_inputs,
     load_selection,
+    resolve_index,
 )
 from lite.task_overrides import build_task_override
 
@@ -44,9 +45,15 @@ class DescribeTest(unittest.TestCase):
         levels = groups["修为历练级别"]
         self.assertEqual(levels["type"], "select")
         self.assertIn("八", levels["cases"])
+        # 用解析函数比对，而不是直接拿存储值当下标：
+        # 存储格式可能从「纯索引」升级为「索引 + 名称」。
         self.assertEqual(
-            levels["cases"][levels["selected"]],
-            levels["cases"][self.selection["💎 修为历练"]["修为历练级别"]],
+            levels["selected"],
+            resolve_index(
+                self.interface["option"]["修为历练级别"],
+                self.selection["💎 修为历练"],
+                "修为历练级别",
+            ),
         )
 
     def test_child_option_follows_parent_case(self):
