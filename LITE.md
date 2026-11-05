@@ -104,6 +104,12 @@ python lite/apply_scope.py
 **不要用 `adb shell wm size` / `wm density` 改显示**：它们留下的是持久覆盖，会和物理分辨率
 冲突（应用白屏、界面错乱），而且 `screencap` 仍按物理尺寸出图。要改就改模拟器自身的设置。
 
+**模拟器只能由用户手动启动。** AI 会话里通过工具执行 `dnplayer.exe` / `ldconsole launch|quit`
+会让模拟器在命令结束时被连带关机（沙箱回收进程树 → VM `powerDown`，是有序关机不是崩溃）。
+AI 只用 `adb devices` 检测 `emulator-5554` 是否就绪，未就绪就请用户双击桌面图标。
+详见 `AGENTS.md` R2；`smoke_emulator_restart.py` / `inject_fault.py` 的模拟器类故障已加闸门，
+需用户设置 `MAAYUAN_ALLOW_EMULATOR_CONTROL=1` 才能执行。
+
 初版范围仅包含已经确认的日常链和邺城修复。所有其他任务仍保留在生成后的 interface 中，但暂未接入新版界面。
 
 初版已实现：
@@ -349,6 +355,10 @@ python lite/apply_scope.py
 修复前第二轮会撞 409「已有任务在运行」，且要等到 15 秒超时窗口过去。
 
 ### 模拟器重启（Q2，2026-11-05 07:29）
+
+> 注：该场景的 `ldconsole quit` + `launch` 是在 **2026-11-05 建立 AGENTS.md R2 之前**做的。
+> 现在这类操作只能在用户手动启动的模拟器上进行，AI 不再自行 launch/quit；
+> `devtools/smoke_emulator_restart.py` 已加闸门，需用户设置环境变量才能跑。
 
 跑「启动游戏」，25 秒后 `ldconsole quit` + `launch`：
 

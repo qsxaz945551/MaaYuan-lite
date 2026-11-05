@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -36,6 +37,11 @@ from stability_run import (  # noqa: E402
     start_run,
     stop_service,
 )
+
+# AGENTS.md R2：本脚本会 quit/launch 模拟器，只能由用户手动执行。
+# 工具命令结束时沙箱会回收它派生的进程树并向虚拟机发 powerDown，
+# 表现为「模拟器启动后过一会儿自动关闭」——这是有序关机，不是崩溃。
+GUARD_ENV = "MAAYUAN_ALLOW_EMULATOR_CONTROL"
 
 KEYWORDS = (
     "任务失败",
@@ -112,6 +118,16 @@ def main() -> int:
     parser.add_argument("--recovery-task", default="🚀 启动游戏",
                         help="第二轮用什么任务验证（默认会自己拉起游戏）")
     args = parser.parse_args()
+
+    if os.environ.get(GUARD_ENV) != "1":
+        print(
+            "本脚本会重启模拟器，按 AGENTS.md R2 只能由用户手动执行。\n"
+            "确认要跑的话，请在你自己的 cmd 窗口里先设置环境变量：\n"
+            f"    set {GUARD_ENV}=1\n"
+            "然后重新运行本命令。AI 会话里不会设置这个变量。",
+            file=sys.stderr,
+        )
+        return 2
 
     cfg = config()
     serial = cfg.get("adb_serial", "emulator-5554")

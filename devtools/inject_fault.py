@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -164,6 +165,17 @@ def inject_emulator() -> str:
     return "模拟器已关闭；恢复：启动雷电后等桌面出现再继续"
 
 
+# AGENTS.md R2：模拟器只能由用户手动启动/重启。这两类故障会改变模拟器状态
+# （断网用的是飞行模式，会把模拟器系统卡死），所以要求用户在终端里显式设置
+# MAAYUAN_ALLOW_EMULATOR_CONTROL=1 才能执行；AI 会话里不会设置它。
+GUARD_ENV = "MAAYUAN_ALLOW_EMULATOR_CONTROL"
+EMULATOR_CONTROL_FAULTS = {"emulator", "network"}
+
+
+def emulator_control_allowed() -> bool:
+    return os.environ.get(GUARD_ENV) == "1"
+
+
 FAULTS = {
     "agent": (inject_agent, "Agent 中途被杀"),
     "adb": (inject_adb, "adb 掉线"),
@@ -197,12 +209,23 @@ def main() -> int:
 
     if args.list:
         for name, (_fn, label) in FAULTS.items():
-            print(f"  {name:<11} {label}")
+            mark = "（需用户手动执行）" if name in EMULATOR_CONTROL_FAULTS else ""
+            print(f"  {name:<11} {label}{mark}")
         print("\n" + EXPECTATIONS)
         return 0
 
     if not args.fault:
         parser.error("需要指定故障类型，或使用 --list")
+
+    if args.fault in EMULATOR_CONTROL_FAULTS and not emulator_control_allowed():
+        print(
+            f"「{FAULTS[args.fault][1]}」会改变模拟器状态，按 AGENTS.md R2 只能由用户手动执行。\n"
+            "确认要跑的话，请在你自己的 cmd 窗口里先设置环境变量：\n"
+            f"    set {GUARD_ENV}=1\n"
+            "然后重新运行本命令。AI 会话里不会设置这个变量。",
+            file=sys.stderr,
+        )
+        return 2
 
     SAMPLE_SECONDS = max(1, args.wait)
 
