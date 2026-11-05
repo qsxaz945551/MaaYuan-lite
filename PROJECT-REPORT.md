@@ -205,6 +205,7 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 | D12 合并实现合一 | ✅ | `lite/deepmerge.py` 统一两处深合并，`copy_values` 区分深浅拷贝；interface 生成结果与改动前逐字节一致 |
 | 运行前完整性校验 | ✅ | 开始日常前先确认 plan 里每个任务都在 interface 里；缺任务时直接报出缺哪几个并中止，不再等跑到第 N 项才抛 `Generated interface is missing task` |
 | 原生对象后台释放 | ✅ | 崩溃栈定位到 `MaaAgentClientDestroy` 在设备中途消失后会永久阻塞。改为后台线程按原顺序销毁（agent 先行，其余最多等 3 秒）；`stop()` 立即返回，失败后紧接着再启动实测 **0.0 s 返回 200**，不再有 409 窗口 |
+| 体力结束后回主界面 | ✅ | 体力耗尽算成功，但界面可能停在活动页/结算页，下一项会空耗 150 s。现在成功后先探测 `is_main_screen()`，不在主界面就按返回键退出（实测 9 s），已在主界面则不动 |
 | 会话收尾超时 | ✅ | `session.stop()` 的每个原生调用都带超时（移除监听 5 s / 停止任务 8 s / 断开 Agent 8 s / 结束 Agent 进程 15 s / 释放原生对象 15 s），超时记 warn 后继续。修复前：`MaaTaskerDestroy` 一旦阻塞，工作线程永不返回，`_busy()` 恒为真，**服务跑完一次后所有后续请求都是 409** |
 | D13 设置原子写 | ✅ | `save_settings` 加锁 + `os.replace` 原子替换，并发保存不再丢字段、崩溃不留半写文件 |
 
@@ -345,7 +346,7 @@ MaaYuan-Lite/
 │  ├─ guards.py               36  死循环护栏
 │  ├─ round_progress.py       35  循环任务计数
 │  └─ version.py               8  版本号
-├─ lite/tests/              2361 行 / 25 个文件 / 155 项用例
+├─ lite/tests/              2450 行 / 25 个文件 / 157 项用例
 ├─ desktop/                 1654 行 C# / 17 个文件
 ├─ devtools/                13 个脚本：run_tests / build_release / upgrade / sync_repo /
 │                                    check_upstream / audit_runtime / smoke_update / proc_tree …
@@ -447,7 +448,7 @@ Lite 的「轻」来自把界面交给系统已有浏览器；WPF 之后不再�
 ### 6.4 测试
 
 ```
-python devtools/run_tests.py      155 项，约 6 秒
+python devtools/run_tests.py      157 项，约 8 秒
 ```
 
 覆盖：设置迁移、选项树、日常计划、调度归类、更新执行器/门禁/下载器、自检、孤儿清理、ANR 识别、方向诊断。
@@ -460,7 +461,7 @@ python devtools/run_tests.py      155 项，约 6 秒
 
 | ID | 内容 | 验收 | 依赖 |
 |---|---|---|---|
-| **R12** | 完整日常实跑 | ✅ 2026-11-04 首次 7/8（520 s）；2026-11-05 复跑鸢报：体力耗尽时 124.5 s 判「体力耗尽，任务结束」并计入成功。8 项均有明确归宿 | 已完成 |
+| **R12** | 完整日常实跑 | ✅ 2026-11-05 20:02 用当前代码跑完整链：7/8 + 续跑补齐 = **8/8**，任务耗时合计约 508 s。鸢报 133.7 s 体力耗尽正常结束；收尾首轮失败（游戏停在活动页），修 `_back_to_main` 后实机复验自动退回主界面耗时 9 s | 已完成 |
 
 ### 7.2 稳定性验收 M7（P1）
 
@@ -517,7 +518,7 @@ python devtools/run_tests.py      155 项，约 6 秒
 
 ```bash
 # 开发
-python devtools/run_tests.py                 # 155 项测试
+python devtools/run_tests.py                 # 157 项测试
 python app.py --selftest                     # 10 项环境自检
 python app.py --no-browser --port 8790       # 只起服务
 
