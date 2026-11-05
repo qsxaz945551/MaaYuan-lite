@@ -838,6 +838,23 @@ class RunService:
             self._log(f"未知界面清理失败：{error}", "warn")
         return False
 
+    def _back_to_main(self, session: LiteSession, name: str) -> None:
+        """Return to the main screen after a clean stamina stop.
+
+        Farming ends the moment the refill dialog appears, which can leave the
+        game on a reward or activity page. The next task assumes the main
+        screen, so it would burn its whole stall window failing to recognise
+        anything — 日常收尾 did exactly that on 2026-11-05.
+
+        ``_recover_unknown_screen`` probes first and does nothing when the main
+        screen is already showing, so a normal finish costs one screenshot.
+        """
+        try:
+            if self._recover_unknown_screen(session):
+                self._log(f"「{name}」结束后已退回主界面，下一项可以正常开始。", "warn")
+        except Exception as error:  # noqa: BLE001 - never abort a run for this
+            self._log(f"「{name}」结束后退回主界面失败（不影响后续）：{error}", "warn")
+
     def _recover_after_failure(self, session: LiteSession, name: str) -> None:
         try:
             if self._handle_anr(session):
@@ -899,6 +916,7 @@ class RunService:
                 outcome["status"] = "succeeded"
                 outcome["reason"] = "体力耗尽，已结束"
                 self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
+                self._back_to_main(session, name)
             else:
                 # 记录实际停顿秒数：阈值只是下限，真实值能区分「刚好超线」
                 # 和「彻底卡死」，复跑对比时有用。
@@ -933,6 +951,7 @@ class RunService:
             outcome["status"] = "succeeded"
             outcome["reason"] = "体力耗尽，已结束"
             self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
+            self._back_to_main(session, name)
         else:
             self._log(f"任务失败：{name}（{duration}s），继续后续任务。", "error")
             # A landscape screen explains a whole run of failures; say it here

@@ -191,5 +191,40 @@ class LandscapeAbortTest(unittest.TestCase):
         self.assertFalse(outcome.get("aborted"), "竖屏时只是普通失败，应继续下一项")
 
 
+class BackToMainTest(unittest.TestCase):
+    """体力耗尽算成功，但界面可能停在活动页/结算页，下一项就会一个节点都识别不到。
+
+    2026-11-05 实测：鸢报「体力耗尽」结束后，日常收尾在密探特训页上耗满了 150 秒
+    看门狗窗口。收尾从主界面重跑 150 秒即成功，说明只要先退回主界面就好。
+    """
+
+    class _Session(NoDialogSession):
+        def __init__(self, already_main: bool) -> None:
+            self._main = already_main
+            self.backs = 0
+
+        def is_main_screen(self) -> bool:
+            return self._main
+
+        def press_back(self) -> bool:
+            self.backs += 1
+            self._main = True
+            return True
+
+    def test_leaves_activity_page(self) -> None:
+        service = make_service()
+        session = self._Session(already_main=False)
+        service._back_to_main(session, "📜 鸢报四连")
+        self.assertEqual(session.backs, 1)
+        messages = [line["message"] for line in service._logs]
+        self.assertTrue(any("退回主界面" in text for text in messages), messages)
+
+    def test_does_nothing_on_main_screen(self) -> None:
+        service = make_service()
+        session = self._Session(already_main=True)
+        service._back_to_main(session, "📜 鸢报四连")
+        self.assertEqual(session.backs, 0, "已在主界面时不能乱按返回键")
+
+
 if __name__ == "__main__":
     unittest.main()
