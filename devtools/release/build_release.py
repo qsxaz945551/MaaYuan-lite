@@ -166,10 +166,12 @@ def main() -> int:
             "resource_path": "assets/resource/base",
         }
     )
+    # 用户偏好（启动/结束动作等）属于 runtime/settings.json，不该跟着包走：
+    # 开发机上的 auto_run 会被新用户继承，第一次打开就自动跑起日常。
+    config.pop("automation", None)
     (target / "lite" / "runtime-config.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-
     for name in ("app.py", "README.md", "NOTICE.md", "LITE.md", "MANIFEST.md"):
         source = ROOT / name
         if source.is_file():
