@@ -79,6 +79,8 @@ public partial class MainWindow : Window
     private readonly List<TaskEntry> _library = new();
     private readonly List<TaskEntry> _stateTasks = new();
     private readonly Dictionary<string, string> _status = new();
+    // 服务端给任务的附注（目前只有地宫入口探测失败时的「本期未开放」）。
+    private readonly Dictionary<string, string> _notes = new();
     private readonly Dictionary<string, string> _singleResults = new();
 
     private DispatcherTimer? _timer;
@@ -142,6 +144,7 @@ public partial class MainWindow : Window
         await LoadOptionsAsync();
         await LoadPlanAsync();
         await RefreshAsync();
+        await LoadMetaAsync();
 
         // Kick off the update check before the slower health check so the badge
         // has time to appear while the window is still settling.
@@ -278,6 +281,24 @@ public partial class MainWindow : Window
         RenderTasks();
         RenderOptions();
         UpdateStartButton();
+    }
+
+    /// <summary>
+    /// 把版本号写进底栏。用户曾直接双击旧包里的 exe 启动，界面和实际代码对不上，
+    /// 有这个就能一眼看出跑的是哪一版。
+    /// </summary>
+    private async Task LoadMetaAsync()
+    {
+        using var doc = await _service.GetAsync("/api/meta");
+        if (doc is null)
+        {
+            return;
+        }
+        var version = Str(doc.RootElement, "version");
+        if (!string.IsNullOrEmpty(version))
+        {
+            FootText.Text = $"{_service.BaseUri}    v{version}    root: {_service.Root}";
+        }
     }
 
     private async Task LoadOptionsAsync()
@@ -427,6 +448,7 @@ public partial class MainWindow : Window
 
         _stateTasks.Clear();
         _status.Clear();
+        _notes.Clear();
         if (root.TryGetProperty("tasks", out var tasks) && tasks.ValueKind == JsonValueKind.Array)
         {
             foreach (var task in tasks.EnumerateArray())
@@ -437,6 +459,11 @@ public partial class MainWindow : Window
                 if (!string.IsNullOrEmpty(status))
                 {
                     _status[name] = status;
+                }
+                var note = Str(task, "note");
+                if (!string.IsNullOrEmpty(note))
+                {
+                    _notes[name] = note;
                 }
             }
         }
@@ -567,12 +594,14 @@ public partial class MainWindow : Window
         return _status.TryGetValue(name, out var status) ? status : "";
     }
 
+    private string NoteOf(string name) => _notes.TryGetValue(name, out var note) ? note : "";
+
     private void RenderTasksIfChanged()
     {
         var rows = _scope == "library" ? _library : VisualDaily();
         var signature = string.Join(
             "\u0001",
-            rows.Select(task => $"{task.Name}:{StatusOf(task.Name)}:{task.Kind}")
+            rows.Select(task => $"{task.Name}:{StatusOf(task.Name)}:{NoteOf(task.Name)}:{task.Kind}")
                 .Append(_selected)
                 .Append(_scope)
                 .Append(_dailyChecked.Count.ToString())
@@ -718,7 +747,8 @@ public partial class MainWindow : Window
         // 「未领取到资源」放第二行行首：跟在任务名后面会被省略号吃掉，
         // 而这句正是这一行最该看见的东西。
         var summary = OptionSummary(task.Name);
-        if (status == "skipped_no_resource" || !string.IsNullOrEmpty(summary))
+        var note = NoteOf(task.Name);
+        if (status == "skipped_no_resource" || !string.IsNullOrEmpty(note) || !string.IsNullOrEmpty(summary))
         {
             var sub = new TextBlock
             {
@@ -733,6 +763,16 @@ public partial class MainWindow : Window
                     FontWeight = FontWeights.Bold,
                     Foreground = AmberBrush,
                 });
+                if (!string.IsNullOrEmpty(summary))
+                {
+                    sub.Inlines.Add(new Run(" · " + summary) { Foreground = SubBrush });
+                }
+            }
+            else if (!string.IsNullOrEmpty(note))
+            {
+                // 例如地宫：「本期未开放」。不如「未领取」那么刺眼，但要能看见，
+                // 因为它意味着控制条那个开关可以关掉了。
+                sub.Inlines.Add(new Run(note) { Foreground = AmberBrush });
                 if (!string.IsNullOrEmpty(summary))
                 {
                     sub.Inlines.Add(new Run(" · " + summary) { Foreground = SubBrush });

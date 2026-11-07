@@ -1335,9 +1335,12 @@ class RunService:
                         )
                         available = True
                     if not available:
+                        # 记一个 note：控制条的地宫开关是持久化的，活动结束后用户
+                        # 从界面上看不出来 —— 标出来才好在下次启动前把开关关掉。
                         self._update_task(
                             index,
                             status="skipped",
+                            note="本期未开放",
                             duration=round(time.monotonic() - started, 1),
                         )
                         self._log(

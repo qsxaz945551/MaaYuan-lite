@@ -151,6 +151,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
 .task-sub { color: #66748a; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-flag { color: var(--amber); font-size: 10px; }
 .task-note { color: var(--amber); font-weight: 600; }
+.task-note-plain { color: var(--amber); }
 .task-row.failed .task-name { color: var(--red); }
 .option-panel { padding: 14px 18px 18px; overflow: auto; flex: 1; }
 .opt-row { display: grid; grid-template-columns: minmax(92px, 132px) 1fr; gap: 10px; align-items: center; padding: 6px 0; }
@@ -454,15 +455,17 @@ function mergeHistory(tasks, history) {
       ...task,
       status: previous.status,
       duration: previous.duration,
-      attempts: previous.attempts
+      attempts: previous.attempts,
+      note: previous.note || ""
     };
   });
 }
 
-function subLine(summary, status) {
+function subLine(summary, status, note) {
   // 「未领取到资源」放行首：接在任务名后面会被省略号吃掉。
   const parts = [];
   if (status === "skipped_no_resource") parts.push('<b class="task-note">未领取到资源</b>');
+  else if (note) parts.push(`<span class="task-note-plain">${esc(note)}</span>`);
   if (summary) parts.push(esc(summary));
   return parts.length ? `<span class="task-sub">${parts.join(" · ")}</span>` : "";
 }
@@ -496,7 +499,7 @@ function taskRowHtml(task, label, single, withCheckbox = false) {
     ${marker}
     <span class="task-main">
       <span class="task-name">${esc(taskIcon(task.name) + taskLabel(task.name))}</span>
-      ${subLine(summary, status)}
+      ${subLine(summary, status, task.note)}
     </span>
     ${flag}
   </div>`;
@@ -512,7 +515,7 @@ function renderTaskList(force = false) {
   if (libraryTasks.some(task => task.name === selectedTask)) libraryOpen = true;
 
   const signature = JSON.stringify([
-    daily.map(task => [task.name, task.status || "", task.duration || 0, task.kind || ""]),
+    daily.map(task => [task.name, task.status || "", task.note || "", task.duration || 0, task.kind || ""]),
     libraryTasks.map(task => task.name),
     single ? [single.name, single.status, (single.results || []).length] : null,
     busy ? 1 : 0,

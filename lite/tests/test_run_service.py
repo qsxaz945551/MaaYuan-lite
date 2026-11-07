@@ -411,6 +411,9 @@ class RunServiceTest(unittest.TestCase):
         state = service.snapshot()
         statuses = {task["name"]: task["status"] for task in state["tasks"]}
         self.assertEqual(statuses["🗡 地宫助手"], "skipped")
+        # 界面上要能看出"为什么跳过"：开关是持久化的，不标注用户不会想到去关它。
+        notes = {task["name"]: task.get("note", "") for task in state["tasks"]}
+        self.assertEqual(notes["🗡 地宫助手"], "本期未开放")
         self.assertEqual(state["status"], "completed")
         self.assertEqual(state["summary"]["failed"], 0)
         self.assertFalse(state["canResume"])
