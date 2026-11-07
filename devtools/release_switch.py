@@ -29,7 +29,12 @@ PREFIX = "MaaYuan-Lite-"
 
 
 def versions(dist: Path) -> list[Path]:
-    """Release directories, newest first (by name, which carries the version)."""
+    """Release directories, newest first.
+
+    Sorting by name as text puts ``0.2.10`` *before* ``0.2.9``, which made
+    ``prune --keep 2`` try to delete the current release. Compare the numeric
+    parts instead; the raw name is only a tiebreaker for odd directory names.
+    """
     if not dist.is_dir():
         return []
     found = [
@@ -37,11 +42,19 @@ def versions(dist: Path) -> list[Path]:
         for path in dist.iterdir()
         if path.is_dir() and path.name.startswith(PREFIX)
     ]
-    return sorted(found, key=lambda path: path.name, reverse=True)
+    return sorted(found, key=_version_key, reverse=True)
 
 
 def version_of(path: Path) -> str:
     return path.name[len(PREFIX) :]
+
+
+def _version_key(path: Path) -> tuple[tuple[int, ...], str]:
+    numbers: list[int] = []
+    for chunk in version_of(path).split("."):
+        digits = "".join(character for character in chunk if character.isdigit())
+        numbers.append(int(digits) if digits else 0)
+    return tuple(numbers), path.name
 
 
 def read_active(dist: Path) -> str | None:

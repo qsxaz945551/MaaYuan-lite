@@ -38,6 +38,26 @@ class ReleaseSwitchTest(unittest.TestCase):
         names = [path.name for path in rs.versions(self.root)]
         self.assertEqual(names, ["MaaYuan-Lite-0.2.0", "MaaYuan-Lite-0.1.9"])
 
+    def test_double_digit_patch_sorts_after_single_digit(self) -> None:
+        """0.2.10 必须比 0.2.9 新，否则 prune 会去删当前版本。"""
+        make_release(self.root, "0.2.9")
+        make_release(self.root, "0.2.10")
+        names = [path.name for path in rs.versions(self.root)]
+        self.assertEqual(
+            names[:3],
+            ["MaaYuan-Lite-0.2.10", "MaaYuan-Lite-0.2.9", "MaaYuan-Lite-0.2.0"],
+        )
+
+    def test_prune_keeps_the_two_newest_with_double_digit_patch(self) -> None:
+        make_release(self.root, "0.2.9")
+        make_release(self.root, "0.2.10")
+        rs.write_active(self.root, "MaaYuan-Lite-0.2.10")
+        rs.cmd_prune(self.root, keep=2, dry_run=False)
+        remaining = {path.name for path in rs.versions(self.root)}
+        self.assertEqual(
+            remaining, {"MaaYuan-Lite-0.2.10", "MaaYuan-Lite-0.2.9"}
+        )
+
     def test_switch_by_version_and_by_directory_name(self) -> None:
         rs.write_active(self.root, rs.resolve(self.root, "0.1.9").name)
         self.assertEqual(rs.read_active(self.root), "MaaYuan-Lite-0.1.9")
