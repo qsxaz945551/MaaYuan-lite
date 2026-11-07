@@ -71,6 +71,9 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _dailyChecked = new();
     private readonly HashSet<string> _libraryChecked = new();
     private HashSet<string> _lastPlanNames = new();
+    // 记录计划是按哪个小时算的：跨过 16:00 / 24:00 要重算一次，
+    // 否则窗口一直开着就永远看不到每日进膳自动出现。
+    private int _planHour = -1;
     private bool _syncingSelectAll;
     private readonly List<TaskEntry> _plan = new();
     private readonly List<TaskEntry> _library = new();
@@ -169,6 +172,11 @@ public partial class MainWindow : Window
             // Poll faster while a run is live so task badges do not lag behind.
             _timer!.Interval = TimeSpan.FromSeconds(_busy ? 1 : 2);
             tick++;
+            if (DateTime.Now.Hour != _planHour)
+            {
+                // 每日进膳 16:00 开、地宫看开关；小时变了就把计划重算一次。
+                await LoadPlanAsync();
+            }
             if (_downloadRunning || tick % 15 == 0)
             {
                 await CheckUpdatesAsync();
@@ -250,6 +258,7 @@ public partial class MainWindow : Window
             _dailyChecked.Add(name);
         }
         _lastPlanNames = currentNames;
+        _planHour = DateTime.Now.Hour;
 
         RebuildLibrary();
         if (!_plan.Any(task => task.Name == _selected))

@@ -362,6 +362,7 @@ let libraryOpen = false;
 let listScope = "daily";
 const checkedTasks = new Set();
 let seenDaily = new Set();
+let planHour = new Date().getHours();
 let automation = { startup_action: "none", shutdown_action: "none" };
 let lastTaskListSignature = "";
 let selectedTask = "";
@@ -395,6 +396,7 @@ async function fetchPlan(preferTraining = false) {
   if (data.error) { setNotice(data.error, true); return; }
   planTasks = data.tasks || [];
   planSkipped = data.skipped || [];
+  planHour = new Date().getHours();
   // 新出现的任务默认勾上：首次进界面、地宫/每日进膳刚开放。用户取消过的不会被重新勾回。
   for (const task of planTasks) {
     if (!seenDaily.has(task.name)) {
@@ -673,6 +675,9 @@ function appendLogs(lines) {
 
 async function refresh() {
   try {
+    if (new Date().getHours() !== planHour) {
+      await fetchPlan();
+    }
     const response = await fetch(
       logPrimed ? `/api/state?since=${logSeq}` : "/api/state?since=latest"
     );
