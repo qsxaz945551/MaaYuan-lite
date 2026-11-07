@@ -117,6 +117,9 @@ class RunService:
         self._tasks: list[dict[str, Any]] = []
         self._plan: dict[str, Any] | None = None
         self._single: dict[str, Any] | None = None
+        # The node the task is on right now, with the pipeline's own `focus`
+        # text when it has one. Cleared between tasks.
+        self._step: dict[str, Any] | None = None
         self._summary: dict[str, Any] = {}
         self._preview: list[dict[str, Any]] | None = None
         self._started_at = ""
@@ -265,6 +268,7 @@ class RunService:
                 "logSeq": self._log_seq,
                 "runId": self._run_id,
                 "single": dict(self._single) if self._single else None,
+                "step": dict(self._step) if self._step else None,
                 "busy": self._thread is not None and self._thread.is_alive(),
                 "canResume": bool(self._tasks)
                 and any(
@@ -531,6 +535,7 @@ class RunService:
         self._last_node_time = begin
         self._log(f"{announce}：{name}")
         session.set_node_callback(self._make_round_handler(entry))
+        session.set_step_callback(self._make_step_handler(name))
         self._start_guard(session, entry)
         try:
             result = session.run_task(
@@ -545,6 +550,8 @@ class RunService:
         finally:
             session.set_node_callback(None)
             session.set_node_start_callback(None)
+            session.set_step_callback(None)
+            self._clear_step()
         duration = round(time.monotonic() - begin, 1)
         outcome = self._classify_result(session, name, result, duration)
         return outcome, duration, result
@@ -720,6 +727,35 @@ class RunService:
             self._log(f"第 {count} 轮完成（{label}）")
 
         return handle
+
+    def _make_step_handler(self, task_name: str):
+        """Track which node the running task is on, for the console's step line.
+
+        ``focus`` is only present on some nodes, so the raw node name is stored
+        next to the display text: a bug report can still quote exactly what the
+        pipeline was doing.
+
+        Deliberately does not touch ``_last_node_time`` — that heartbeat is fed
+        by *finished* nodes, and a pipeline looping between node starts without
+        ever completing one is precisely the stall the watchdog looks for.
+        """
+
+        def handle(node_name: str, text: str | None) -> None:
+            step = {
+                "task": task_name,
+                "node": node_name,
+                "label": text or node_name,
+                "focus": bool(text),
+                "at": datetime.now().strftime("%H:%M:%S"),
+            }
+            with self._lock:
+                self._step = step
+
+        return handle
+
+    def _clear_step(self) -> None:
+        with self._lock:
+            self._step = None
 
     def _stalled(self) -> bool:
         """True when no node has finished for STALL_SECONDS."""

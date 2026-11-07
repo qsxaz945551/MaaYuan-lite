@@ -4,5 +4,5 @@
 generated interface, and the release builder reads it for the folder name.
 """
 
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 API_VERSION = 1

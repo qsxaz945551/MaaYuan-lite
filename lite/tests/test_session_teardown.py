@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 import unittest
 
-from lite.session import LiteSession
+from lite.session import LiteSession, _release_native
 
 
 class Harness:
@@ -56,6 +56,43 @@ class WithTimeoutTest(unittest.TestCase):
 
         harness._with_timeout("报错步骤", boom, 1.0)
         self.assertEqual(harness.messages, [])
+
+
+class _Native:
+    """Stand-in for maa.Tasker / maa.AgentClient: teardown lives in __del__."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self._handle = object()
+        self.destroys = 0
+        self.fail = fail
+
+    def __del__(self) -> None:
+        if self._handle:
+            self.destroys += 1
+            if self.fail:
+                raise RuntimeError("native destroy failed")
+
+
+class ReleaseNativeTest(unittest.TestCase):
+    """原生对象只能销毁一次，否则就是二次释放（0xc0000374）。"""
+
+    def test_destructor_runs_once(self) -> None:
+        native = _Native()
+        _release_native(native)
+
+        self.assertIsNone(native._handle)
+        self.assertEqual(native.destroys, 1)
+
+        # 引用归零时 CPython 会再调一次 __del__，必须变成空操作。
+        _release_native(native)
+        self.assertEqual(native.destroys, 1)
+
+    def test_raising_destructor_still_disarms(self) -> None:
+        native = _Native(fail=True)
+        _release_native(native)
+
+        self.assertIsNone(native._handle)
+        self.assertEqual(native.destroys, 1)
 
 
 if __name__ == "__main__":

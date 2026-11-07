@@ -24,6 +24,7 @@ class FakeSession:
     timeout_entries: set[str] = set()
     node_events: dict[str, list[str]] = {}
     node_start_events: dict[str, list[str]] = {}
+    step_texts: dict[str, str] = {}
     instances: list["FakeSession"] = []
 
     def __init__(self, **kwargs):
@@ -31,6 +32,7 @@ class FakeSession:
         self.stopped = False
         self._node_callback = None
         self._node_start_callback = None
+        self._step_callback = None
         FakeSession.instances.append(self)
 
     def start(self, connect_timeout: float = 30.0) -> None:
@@ -44,6 +46,9 @@ class FakeSession:
 
     def set_node_start_callback(self, callback) -> None:
         self._node_start_callback = callback
+
+    def set_step_callback(self, callback) -> None:
+        self._step_callback = callback
 
     def device_ready(self) -> bool:
         return FakeSession.device_ok
@@ -87,6 +92,8 @@ class FakeSession:
         for node in FakeSession.node_start_events.get(entry, []):
             if self._node_start_callback is not None:
                 self._node_start_callback(node)
+            if self._step_callback is not None:
+                self._step_callback(node, FakeSession.step_texts.get(node))
         if should_stop is not None and should_stop():
             return {
                 "entry": entry,
@@ -139,6 +146,7 @@ class RunServiceTest(unittest.TestCase):
         FakeSession.timeout_entries = set()
         FakeSession.node_events = {}
         FakeSession.node_start_events = {}
+        FakeSession.step_texts = {}
         FakeSession.instances = []
         self.entries = entry_map()
 
@@ -197,6 +205,50 @@ class RunServiceTest(unittest.TestCase):
             [line["message"] for line in reset["logs"]],
             ["a", "b", "c", "—— 新的一次运行 ——"],
         )
+
+    def test_step_handler_feeds_snapshot_and_clears(self):
+        service = RunService(self.root, self.config)
+        self.assertIsNone(service.snapshot(0)["step"])
+
+        handler = service._make_step_handler("🔶 日常收尾")
+        handler("领取密探特训奖励启动", "开始领取密探特训奖励")
+        step = service.snapshot(0)["step"]
+        self.assertEqual(step["task"], "🔶 日常收尾")
+        self.assertEqual(step["node"], "领取密探特训奖励启动")
+        self.assertEqual(step["label"], "开始领取密探特训奖励")
+        self.assertTrue(step["focus"])
+        self.assertTrue(step["at"])
+
+        # Nodes without focus fall back to their name, flagged for the UI.
+        handler("检测点击_前往收集", None)
+        step = service.snapshot(0)["step"]
+        self.assertEqual(step["label"], "检测点击_前往收集")
+        self.assertFalse(step["focus"])
+
+        service._clear_step()
+        self.assertIsNone(service.snapshot(0)["step"])
+
+    def test_run_publishes_step_during_task(self):
+        """_execute_job must wire the step callback, not just define a handler."""
+        service = RunService(self.root, self.config)
+        name = "🗡 白鹄扫荡"
+        entry = self.entries[name]
+        FakeSession.node_start_events = {entry: ["准备扫荡"]}
+        FakeSession.step_texts = {"准备扫荡": "开始扫荡"}
+        # Keep the value around after the run so the last step is observable;
+        # in production it is cleared as soon as the task ends.
+        service._clear_step = lambda: None
+
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.assertTrue(service.run_single(name))
+            service._thread.join(30)
+
+        step = service.snapshot(0)["step"]
+        self.assertIsNotNone(step)
+        self.assertEqual(step["task"], name)
+        self.assertEqual(step["node"], "准备扫荡")
+        self.assertEqual(step["label"], "开始扫荡")
+        self.assertTrue(step["focus"])
 
     def test_log_cursor_skips_existing_history(self):
         service = RunService(self.root, self.config)

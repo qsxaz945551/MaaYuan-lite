@@ -149,7 +149,18 @@ public sealed class LiteService : IDisposable
         }
         try
         {
-            using var content = body is null ? null : JsonContent.Create(body);
+            // StringContent, not JsonContent: JsonContent serialises while the
+            // request is being written, so HttpClient cannot set Content-Length
+            // and falls back to chunked transfer. app.py reads the body with
+            // Content-Length only, so a chunked POST arrives as an empty dict --
+            // "task and group are required" every time, with the UI silently
+            // treating the save as failed.
+            using var content = body is null
+                ? null
+                : new StringContent(
+                    JsonSerializer.Serialize(body, body.GetType()),
+                    System.Text.Encoding.UTF8,
+                    "application/json");
             using var response = await _client.PostAsync(new Uri(BaseUri, path), content, token);
             if (response.IsSuccessStatusCode)
             {

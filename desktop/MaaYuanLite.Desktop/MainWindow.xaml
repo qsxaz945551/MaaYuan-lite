@@ -3,79 +3,271 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:MaaYuanLite.Desktop.Models"
         mc:Ignorable="d"
-        Title="MaaYuan Lite" Height="880" Width="1360"
-        Background="#F3F4F6" FontFamily="Microsoft YaHei UI" FontSize="13">
+        Title="MaaYuan Lite" Height="860" Width="1360" MinHeight="700" MinWidth="1080"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Microsoft YaHei UI" FontSize="13"
+        Foreground="{StaticResource TextBrush}"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+    <Window.Background>
+        <RadialGradientBrush GradientOrigin="0.9,0.02" Center="0.9,0.02" RadiusX="0.85" RadiusY="0.55">
+            <GradientStop Color="#1D2733" Offset="0"/>
+            <GradientStop Color="#0D1117" Offset="0.55"/>
+        </RadialGradientBrush>
+    </Window.Background>
+
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="56"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="28"/>
+            <RowDefinition Height="26"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="White" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1">
-            <Grid Margin="16,0">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="MaaYuan Lite" FontSize="17" FontWeight="SemiBold"/>
-                    <Border Background="#F3F4F6" CornerRadius="10" Padding="10,3" Margin="12,0,0,0">
-                        <TextBlock x:Name="StatusText" Text="未连接" Foreground="#6B7280"/>
-                    </Border>
-                    <Border x:Name="UpdateBadge" Background="#FEF3C7" CornerRadius="10" Padding="10,3"
-                            Margin="8,0,0,0" Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="OnUpdateClick"
-                            ToolTip="点击查看可用的更新">
-                        <TextBlock x:Name="UpdateText" Foreground="#92400E" FontSize="12"/>
-                    </Border>
+        <!-- ============ header ============ -->
+        <Grid Grid.Row="0" Margin="24,18,24,14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="40" Height="40" CornerRadius="12" BorderThickness="1" BorderBrush="#5B4C32">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#31291D" Offset="0"/>
+                            <GradientStop Color="#1E1B16" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <TextBlock Text="鸢" Foreground="{StaticResource AccentBrush}" FontSize="17"
+                               FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Margin="13,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="MaaYuan Lite" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="如鸢日常收菜 · 轻量运行器" FontSize="12"
+                               Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="启动时" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="StartupCombo" Width="132" Margin="0,0,10,0" SelectionChanged="OnStartupChanged"/>
-                    <TextBlock Text="结束后" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="ShutdownCombo" Width="132" Margin="0,0,12,0" SelectionChanged="OnShutdownChanged"/>
-                    <Button Content="检查连接" Padding="14,6" Margin="0,0,8,0" Click="OnCheck"/>
-                    <Button Content="开始日常" Padding="14,6" Margin="0,0,8,0" Click="OnStart"/>
-                    <Button Content="停止" Padding="14,6" Click="OnStop"/>
-                </StackPanel>
-            </Grid>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Border x:Name="UpdateBadge" Background="#2A2418" BorderBrush="#4C3E28" BorderThickness="1"
+                        CornerRadius="99" Padding="11,4" Margin="0,0,14,0" Visibility="Collapsed"
+                        Cursor="Hand" MouseLeftButtonUp="OnUpdateClick" ToolTip="点击查看可用的更新">
+                    <TextBlock x:Name="UpdateText" Foreground="{StaticResource AmberBrush}" FontSize="12"/>
+                </Border>
+                <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="#8D9BAD" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Text="正在读取状态" Foreground="{StaticResource MutedBrush}"
+                           FontSize="12" Margin="9,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- 当前步骤：数据来自 /api/state 的 step 字段（pipeline 节点的 focus 文案） -->
+            <Border x:Name="StepStrip" Grid.Row="1" Margin="0,10,0,0" Visibility="Collapsed"
+                    Background="{StaticResource InputBrush}" BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12,7">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="当前步骤" Foreground="{StaticResource FaintBrush}" FontSize="11"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StepText" Grid.Column="1" Margin="10,0,10,0" FontSize="12"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StepTime" Grid.Column="2" Foreground="{StaticResource FaintBrush}"
+                               FontSize="11" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============ control bar ============ -->
+        <Border Grid.Row="1" Margin="24,0,24,16" Background="{StaticResource PanelBrush}"
+                BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16">
+            <StackPanel>
+                <Grid Margin="18,14,18,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                        <TextBlock Text="启动时" Foreground="{StaticResource MutedBrush}"
+                                   FontSize="12" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="StartupCombo" Width="146" SelectionChanged="OnStartupChanged"/>
+                    </StackPanel>
+
+                    <!-- 13px ≈ 一个汉字，与「启动时/结束后」这对下拉拉开一档 -->
+                    <StackPanel Grid.Column="1" Margin="0,0,13,0">
+                        <TextBlock Text="结束后" Foreground="{StaticResource MutedBrush}"
+                                   FontSize="12" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="ShutdownCombo" Width="146" SelectionChanged="OnShutdownChanged"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Margin="0,0,24,0" VerticalAlignment="Center">
+                        <TextBlock Text="地宫开放期" Foreground="{StaticResource MutedBrush}"
+                                   FontSize="12" Margin="0,0,0,6"/>
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton x:Name="DungeonToggle" Style="{StaticResource SwitchToggle}"
+                                          VerticalAlignment="Center" Click="OnDungeonChanged"
+                                          ToolTip="限时日常，默认关闭。开放期打开；检测不到入口会自动跳过，不阻断后续任务。"/>
+                            <TextBlock x:Name="DungeonHint" Text="默认关闭" Margin="10,0,0,0"
+                                       VerticalAlignment="Center" FontSize="11"
+                                       Foreground="{StaticResource MutedBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="StartButton" Content="开始日常" Style="{StaticResource PrimaryButton}"
+                                Padding="18,9" Margin="0,0,8,0" Click="OnStart"/>
+                        <Button x:Name="ResumeButton" Content="继续未完成" Padding="14,9"
+                                Margin="0,0,8,0" IsEnabled="False" Click="OnResume"/>
+                        <Button x:Name="StopButton" Content="停止" Style="{StaticResource DangerButton}"
+                                Padding="16,9" IsEnabled="False" Click="OnStop"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock x:Name="NoticeText" Margin="18,0,18,11" FontSize="12"
+                           Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
         </Border>
 
-        <Grid Grid.Row="1" Margin="16">
+        <!-- ============ workspace ============ -->
+        <Grid Grid.Row="2" Margin="24,0,24,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="320"/>
-                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="14"/>
                 <ColumnDefinition Width="420"/>
-                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="14"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="8">
+            <!-- left: task list -->
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}"
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="执行顺序" FontWeight="SemiBold" Margin="8,4,8,8"/>
-                    <ListBox x:Name="TaskList" BorderThickness="0" FontSize="13"
-                             SelectionChanged="OnTaskSelected"/>
+                    <StackPanel DockPanel.Dock="Top">
+                        <Grid Margin="18,14,18,8">
+                            <TextBlock Text="执行顺序" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock x:Name="ConnectionMeta" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <Grid Margin="10,0,10,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/>
+                                <ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
+                            <RadioButton x:Name="DailyTab" Grid.Column="0" Style="{StaticResource PaneTab}"
+                                         IsChecked="True" Checked="OnScopeChanged">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="今日日常"/>
+                                    <TextBlock x:Name="DailyCount" Text="0" Foreground="#55627A"
+                                               FontSize="11" Margin="5,0,0,0"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="LibraryTab" Grid.Column="1" Style="{StaticResource PaneTab}"
+                                         Checked="OnScopeChanged">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="其他任务"/>
+                                    <TextBlock x:Name="LibraryCount" Text="0" Foreground="#55627A"
+                                               FontSize="11" Margin="5,0,0,0"/>
+                                </StackPanel>
+                            </RadioButton>
+                        </Grid>
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8,0,8,8">
+                        <StackPanel x:Name="TaskListPanel"/>
+                    </ScrollViewer>
                 </DockPanel>
             </Border>
 
-            <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="12">
+            <!-- middle: options -->
+            <Border Grid.Column="2" Background="{StaticResource PanelBrush}"
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16">
                 <DockPanel>
-                    <TextBlock x:Name="Breadcrumb" DockPanel.Dock="Top" Text="任务选项"
-                               FontWeight="SemiBold" Margin="0,0,0,8"/>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid DockPanel.Dock="Top" Margin="18,14,18,10">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="CrumbRoot" Text="执行顺序" Foreground="#6D7B8E"
+                                       FontSize="11" VerticalAlignment="Center"/>
+                            <TextBlock Text="›" Foreground="#46536A" FontSize="11"
+                                       Margin="6,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="CrumbTitle" Text="任务选项" FontWeight="SemiBold"
+                                       FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="OptionMeta" HorizontalAlignment="Right"
+                                   Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,0,18,16">
                         <StackPanel x:Name="OptionsPanel"/>
                     </ScrollViewer>
                 </DockPanel>
             </Border>
 
-            <Border Grid.Column="4" Background="White" CornerRadius="8" Padding="12">
+            <!-- right: log -->
+            <Border Grid.Column="4" Background="{StaticResource PanelBrush}"
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="运行日志" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                    <ListBox x:Name="LogList" BorderThickness="0" FontFamily="Consolas" FontSize="12"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+                    <Grid DockPanel.Dock="Top" Margin="18,14,18,8">
+                        <TextBlock Text="运行日志" FontWeight="SemiBold" FontSize="13"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button x:Name="CheckLink" Content="检查连接" Style="{StaticResource LinkButton}"
+                                    Margin="0,0,14,0" Click="OnCheck"/>
+                            <Button Content="最近截图" Style="{StaticResource LinkButton}" Click="OnOpenScreenshot"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource LineBrush}"
+                            BorderThickness="0,1,0,0" Padding="18,9">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="成功" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                            <TextBlock x:Name="OkCount" Text="0" FontSize="12" Margin="6,0,18,0"/>
+                            <TextBlock Text="失败" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                            <TextBlock x:Name="FailCount" Text="0" FontSize="12" Margin="6,0,18,0"/>
+                            <TextBlock Text="状态" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                            <TextBlock x:Name="SummaryState" Text="待机" FontSize="12" Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid>
+                        <ListBox x:Name="LogList" Background="Transparent" BorderThickness="0" Padding="0,6,0,0"
+                                 FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 VirtualizingPanel.IsVirtualizing="True">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:LogEntry}">
+                                    <Grid Margin="18,3,10,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="52"/>
+                                            <ColumnDefinition Width="40"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Time}" Foreground="{StaticResource FaintBrush}"
+                                                   FontSize="12"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding LevelText}"
+                                                   Foreground="#7D8B9F" FontSize="10" Margin="0,2,0,0"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Message}" FontSize="12"
+                                                   Foreground="{Binding Brush}" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock x:Name="LogEmpty" Text="尚未开始运行。" Margin="18,10,18,0"
+                                   VerticalAlignment="Top" Foreground="{StaticResource MutedBrush}"
+                                   IsHitTestVisible="False"/>
+                    </Grid>
                 </DockPanel>
             </Border>
         </Grid>
 
-        <Border Grid.Row="2" Background="White" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0">
-            <TextBlock x:Name="FootText" Margin="16,0" VerticalAlignment="Center" Foreground="#9CA3AF"/>
+        <!-- ============ footer ============ -->
+        <Border Grid.Row="3" Background="#0B0F14" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0">
+            <TextBlock x:Name="FootText" Margin="24,0" VerticalAlignment="Center"
+                       Foreground="#4C566A" FontSize="11"/>
         </Border>
     </Grid>
 </Window>

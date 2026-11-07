@@ -1,6 +1,6 @@
 {
-  "commit": "c1194728da353ef95ee3eeac3c46427fc441152d",
-  "commitDate": "2026-10-26",
+  "commit": "64c5248e1726ddeb859fea9161b7edc88211f53d",
+  "commitDate": "2026-11-05",
   "branch": "v5",
   "modelsCommit": "dabcd4681ac990dc4361de26416d986abd80e4aa",
   "models": {
@@ -13,7 +13,7 @@
     "model/ocr/en/rec.onnx": "af88197ae6ab9f391e59f3f26ad8a6851c1cbbebb91d37834fb7bc21f779a8d7",
     "model/ocr/en/keys.txt": "f27a6aa993c9cb67a588e7ea9aea90bb96b8e51dec6ce98bd7e76c104c1829fe"
   },
-  "interfaceSha256": "c923602c38faf2c96102ef5d74a45e97b80dd68b30dff15d46eaa2021b44bee6",
+  "interfaceSha256": "c87d1a2b12052e10b65f14bc8c6905b6e6c8cc7d4f4a1056fbfcdd53544cb1e4",
   "pipelineCount": 155,
-  "generatedAt": "2026-11-02 13:44:47"
+  "generatedAt": "2026-11-06 08:07:45"
 }

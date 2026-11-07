@@ -36,6 +36,10 @@ START_BAT = """@echo off
 chcp 65001 >nul
 cd /d "%~dp0"
 
+rem .NET 10 Desktop Runtime is the only external dependency (framework-dependent WPF)
+call :check_dotnet
+if errorlevel 1 exit /b 1
+
 if not exist "MaaYuanLite.Desktop.exe" (
   echo [ERROR] 缺少 MaaYuanLite.Desktop.exe
   pause
@@ -49,6 +53,29 @@ if not exist "runtime_env\\python\\python.exe" (
 )
 
 start "" "MaaYuanLite.Desktop.exe"
+exit /b 0
+
+:check_dotnet
+rem Locate Microsoft.WindowsDesktop.App 10.x. Keep this block ASCII-only:
+rem cmd.exe misreads batch files that mix chcp 65001 with multi-byte text,
+rem the parse offset drifts and swallows the leading "echo" of a later line.
+rem %ProgramFiles(x86)% is deliberately omitted: its ")" would close the
+rem "for ... in (...)" set early, and a 32-bit dotnet could not run us anyway.
+set "WPF10="
+for %%r in ("%ProgramFiles%\\dotnet" "%LOCALAPPDATA%\\Microsoft\\dotnet" "%DOTNET_ROOT%") do (
+  if not defined WPF10 if exist "%%~r\\shared\\Microsoft.WindowsDesktop.App" (
+    for /d %%d in ("%%~r\\shared\\Microsoft.WindowsDesktop.App\\10.*") do set "WPF10=%%~nxd"
+  )
+)
+if defined WPF10 exit /b 0
+echo.
+echo [ERROR] .NET 10 Desktop Runtime not found.
+echo         It is the only external component (~55 MB), install it once.
+echo         https://dotnet.microsoft.com/download/dotnet/10.0
+echo         Pick ".NET Desktop Runtime 10.x" - Windows x64 - then run again.
+echo.
+pause
+exit /b 1
 """
 
 

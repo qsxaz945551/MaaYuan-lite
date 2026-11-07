@@ -40,16 +40,19 @@
 dist/
   ├─ active.txt                   指向当前版本（Q3 回退指针）
   ├─ 启动 Lite.bat                版本无关入口，按 active.txt 启动
-  └─ MaaYuan-Lite-0.2.1/          343 MB（2987 个文件）
-  ├─ MaaYuanLite.Desktop.exe      WPF 客户端（framework-dependent，需 .NET 10 Desktop Runtime）
+  └─ MaaYuan-Lite-0.2.3/          343 MB（2999 个文件）
+  ├─ MaaYuanLite.Desktop.exe      WPF 客户端（framework-dependent，需 .NET 10 Desktop Runtime；启动脚本会检测并给出下载地址）
   ├─ start-lite.bat               包内入口，拉起 WPF
-  ├─ runtime_env/                 293 MB，CPython 3.12.10 + maa 5.6.0 + 全部依赖
-  ├─ assets/                      75 MB，pipeline + 图片模板 + 8 个 OCR 模型
-  ├─ agent/                       8.5 MB，Python Agent
+  ├─ runtime_env/                 263 MB，CPython 3.12.10 + maa 5.6.0 + 全部依赖
+  ├─ assets/                      72 MB，pipeline + 图片模板 + 8 个 OCR 模型
+  ├─ agent/                       6.9 MB，Python Agent
   ├─ lite/                        自研后端
   ├─ build/generated/interface.json
   └─ NOTICE.md                    第三方许可
 ```
+
+> 2026-11-05 晚给 `start-lite.bat` 与 `dist\启动 Lite.bat` 补了 .NET 10 运行时探测（缺失时打印下载地址并退出码 1）。
+> 模板在 `devtools/build_release.py` 的 `START_BAT`；0.2.2 是就地打补丁，**0.2.3 已整体重打包并切为 active**，包含 11-05 之后全部运行期修复。
 
 ---
 
@@ -221,32 +224,50 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 ### 3.5 M4 WPF 客户端
 
 ```
-desktop/MaaYuanLite.Desktop/    17 个文件，1654 行 C#
-  MainWindow.xaml / .cs         三栏骨架、状态轮询、更新徽章
+desktop/MaaYuanLite.Desktop/    18 个文件
+  App.xaml                      深色主题资源：配色、按钮、下拉、开关、复选、滚动条
+  MainWindow.xaml / .cs         状态条 + 控制条 + 三栏
   Services/LiteService.cs       进程管理 + HTTP 客户端
   Models/OptionGroup.cs         选项控件模型
+  Models/LogEntry.cs            日志行（按 level 着色）
 ```
 
 | 项              | 实现                                                                                                     |
 | -------------- | ------------------------------------------------------------------------------------------------------ |
 | **W0 发布形态**    | framework-dependent，`net10.0-windows`。理由：.NET 10 是 LTS（到 2028-11），.NET 8 在 2026-11-10 EOL、.NET 9 已 EOL |
-| **W1 三栏**      | 左任务 / 中选项 / 右日志，1360×880                                                                               |
+| **W1 布局**      | 状态条 / 控制条 / 三栏（320 · 420 · 自适应），1360×860，最小 1080×700；深色主题按 WebView 控制台配色 1:1 还原（`#0D1117` 底 + `#D9B36C` 强调） |
 | **W2 进程管理**    | 查根目录 → 复用已运行实例（读 `port.txt`）→ 否则起 `python app.py --no-browser --parent-pid <pid>`                      |
-| **W3 状态与日志**   | 2 秒轮询 `/api/state`，增量渲染，上限 800 行                                                                       |
+| **W3 状态与日志**   | 空闲 2 秒、运行中 1 秒轮询 `/api/state`；首屏 `since=0` 拉取已有日志，增量追加，上限 800 行；`warn`/`error` 着色                    |
 | **W4 选项控件**    | 下拉（>2 项）/ 开关（=2 项，`Yes` 固定为开）/ 文本框，改动即时写回                                                              |
-| **W5 启停动作**    | 顶栏两个下拉，读写 `/api/settings`                                                                              |
+| **W5 启停动作**    | 控制条两个下拉，读写 `/api/settings`                                                                             |
 | **W6 首次自检**    | 启动调 `/api/health`，只有 fail 才弹窗；模拟器未开只是警告                                                                |
 | **W7 替换 Edge** | `start-lite.bat` 默认启 WPF，`--legacy` 才走浏览器；删除 `find_edge`/窗口枚举，`app.py` 从 770 行降到 730 行                 |
+| **W8 任务列表**    | 「今日日常 / 其他任务」两个 Tab 带计数；每行 = 序号（其他任务为勾选框）+ 名称 + 选项摘要 + 状态徽章（完成/失败/超时/跳过/限时）；选中行金边高亮 |
+| **W9 单独执行**    | 其他任务勾选后 `POST /api/run-task`，按列表顺序批量执行；按钮文案随勾选数变为「开始任务（N）」                                              |
+| **W10 历练类型**   | 选中「历练」时面板顶部出现修为/铜钱/经验三按钮，切换即重取 `/api/plan?training=` 并写回 `lastTraining`                                |
+| **W11 地宫开关**   | 控制条开关 → `lastDungeon` → 重取 `/api/plan?dungeon=`；运行中禁用                                                       |
 | 更新徽章           | 三态：有更新（黄）/ 正在下载（蓝，带百分比与 MB）/ 待生效（点击可重启）                                                                |
 
 **顺手修的真 bug**：WPF 用 `--no-browser` 启动，而「启动时自动运行日常」写在该分支内 —— 这个设置从来没生效过。已移出，实测 `--no-browser` 下能自动开跑。
+
+**2026-11-05 深夜修的大 bug：WPF 的所有 POST 请求体都是空的。**
+`LiteService.PostAsync` 用 `JsonContent.Create(body)`，它要等到写请求流时才序列化，`HttpClient` 因此拿不到长度、退化成 `Transfer-Encoding: chunked`；
+而 `app.py` 的 `_read_json` 只读 `Content-Length`，chunked 请求直接当成 `{}`。后果是**静默**的：
+任务选项保存失败（滑块拨过去又弹回来）、启动时/结束后下拉不生效、其他任务批量执行失败、
+「继续未完成」实际会重新开一轮日常（空 payload 走了默认值）。改用 `StringContent(JsonSerializer.Serialize(...))` 后恢复正常。
+服务端也补上了 chunked 解析（`lite/http_body.py`，`read_body` 同时认 `Content-Length` 与 `Transfer-Encoding: chunked`，
+9 项测试在 `lite/tests/test_http_body.py`），这样即便以后有客户端再按 chunked 发，也不会静默丢包。
+教训：读请求体的服务端和写请求体的客户端，长度语义必须对齐；静默吞掉请求体比报错难查得多。
+
+**界面自检**：`MaaYuanLite.Desktop.exe --screenshot out.png` 渲染整窗到 PNG 后退出（`--scope library` 切到其他任务页），用于改版前后对比，不需要人工点。
 
 ### 3.6 M5 打包与分发
 
 | 项                           | 内容                                                                                                                               |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `devtools/build_release.py` | `dotnet publish` → 重建 interface → 复制 runtime_env/assets/agent/lite/docs → 写 `start-lite.bat` → 产出 `dist/MaaYuan-Lite-<version>/` |
-| 产物                          | 343 MB / 2985 文件；`grep "Apps Game"` 为零                                                                                           |
+| 产物                          | 343 MB / 2999 文件；`grep "Apps Game"` 为零                                                                                           |
+| `devtools/smoke_release.py` | 对**已打包目录**做一次自检：起包内运行时 → `/api/meta` 版本 → `/api/health` → 可选 `/api/check`（只连接+截图）→ `/api/exit`。`--skip-game` 跳过连机 |
 | `devtools/upgrade.py`       | 默认预演，`--apply` 才执行；保留 `lite/*.json`、`runtime/`；配置先备份到 `runtime/upgrade-backup-<时间>/`                                             |
 | `NOTICE.md`                 | 11 个第三方组件及许可                                                                                                                     |
 

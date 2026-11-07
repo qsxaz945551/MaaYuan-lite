@@ -17,6 +17,7 @@ def make_session() -> tuple[LiteSession, list[tuple[str, str]]]:
     session._logger = lambda message, level="info": notes.append((level, message))
     session._node_callback = None
     session._node_start_callback = None
+    session._step_callback = None
     return session, notes
 
 
@@ -45,6 +46,32 @@ class CallbackErrorTest(unittest.TestCase):
         session._handle_node_start("进入界面-地宫")
         self.assertEqual(len(notes), 1)
         self.assertIn("bad start hook", notes[0][1])
+
+    def test_step_callback_error_is_logged(self) -> None:
+        session, notes = make_session()
+
+        def boom(_name: str, _text: str | None) -> None:
+            raise RuntimeError("console gone")
+
+        session._step_callback = boom
+        session._handle_step("进入界面-活动", "进入活动页")
+        self.assertEqual(len(notes), 1)
+        self.assertIn("console gone", notes[0][1])
+        self.assertIn("进入界面-活动", notes[0][1])
+
+    def test_step_callback_receives_focus_text(self) -> None:
+        session, _ = make_session()
+        seen: list[tuple[str, str | None]] = []
+        session._step_callback = lambda name, text: seen.append((name, text))
+        session._handle_step("领取密探特训奖励启动", "开始领取密探特训奖励")
+        session._handle_step("检测点击_前往收集", None)
+        self.assertEqual(
+            seen,
+            [
+                ("领取密探特训奖励启动", "开始领取密探特训奖励"),
+                ("检测点击_前往收集", None),
+            ],
+        )
 
     def test_no_callback_is_silent(self) -> None:
         session, notes = make_session()

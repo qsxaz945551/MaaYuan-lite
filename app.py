@@ -32,6 +32,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from lite.daily_plan import build_plan, load_profile
+from lite.http_body import read_body
 from lite.run_service import RunService
 from lite.settings import (
     SHUTDOWN_ACTIONS,
@@ -341,10 +342,13 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                 self.close_connection = True
 
         def _read_json(self) -> dict:
-            length = int(self.headers.get("Content-Length", "0"))
-            if length <= 0:
+            raw = read_body(self.rfile, self.headers)
+            if not raw:
                 return {}
-            return json.loads(self.rfile.read(length).decode("utf-8"))
+            try:
+                return json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError(f"请求体不是合法 JSON：{error}") from error
 
         def do_GET(self):
             parsed = urlparse(self.path)

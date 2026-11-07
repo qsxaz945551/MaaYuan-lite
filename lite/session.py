@@ -17,27 +17,84 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from .step_text import focus_text
+
 
 class SessionError(RuntimeError):
     pass
 
 
+def _release_native(obj: Any) -> None:
+    """Destroy one Maa native object exactly once.
+
+    ``maa`` wraps a C handle and exposes *only* ``__del__`` as teardown. Calling
+    it by hand works, but the object is still alive afterwards: when the last
+    reference drops, CPython runs ``__del__`` again and the framework destroys a
+    handle that is already freed. That double release is what crashed the
+    service right after a run finished — ``0xc0000374`` in ``MaaTaskerDestroy``
+    and an access violation in ``MaaAgentClientDestroy``
+    (``runtime/crash.log``, 2026-11-06 08:18:17).
+
+    Clearing ``_handle`` after the first call turns the second one into the
+    no-op the destructors already check for (``if self._handle``).
+    """
+    finalize = getattr(obj, "__del__", None)
+    try:
+        if callable(finalize):
+            finalize()
+    except Exception:  # noqa: BLE001 - teardown must not raise
+        pass
+    finally:
+        try:
+            obj._handle = None
+        except Exception:  # noqa: BLE001 - a read-only handle must not abort teardown
+            pass
+
+
 def _make_node_sink(
     on_success: Callable[[str], None],
     on_start: Optional[Callable[[str], None]] = None,
+    on_step: Optional[Callable[[str, Optional[str]], None]] = None,
 ):
-    """Build a tasker sink that reports pipeline node starts and successes."""
-    from maa.tasker import TaskerEventSink
+    """Build a context sink that reports pipeline node starts and successes.
 
-    class _NodeSink(TaskerEventSink):
-        def on_raw_notification(self, tasker, msg: str, details: dict) -> None:
-            name = details.get("name")
+    ``TaskerEventSink`` + ``Tasker.add_sink`` only delivers ``Tasker.Task.*``
+    notifications in maafw 5.6.0; pipeline node events go to
+    ``ContextEventSink`` + ``Tasker.add_context_sink``. Using the tasker sink
+    left the stall watchdog and the loop guard without any node heartbeat, so
+    every task longer than ``STALL_SECONDS`` was killed as "no progress" even
+    while nodes kept succeeding.
+
+    ``on_step`` additionally receives the node's ``focus`` text (the progress
+    description upstream embeds in the pipeline) so the console can show what
+    the task is doing instead of an internal node name.
+    """
+    from maa.context import ContextEventSink
+    from maa.event_sink import NotificationType
+
+    class _NodeSink(ContextEventSink):
+        def on_node_pipeline_node(self, context, noti_type, detail) -> None:
+            name = getattr(detail, "name", None)
             if not name:
                 return
-            if msg == "Node.PipelineNode.Succeeded":
+            if noti_type == NotificationType.Succeeded:
                 on_success(str(name))
-            elif msg == "Node.PipelineNode.Starting" and on_start is not None:
-                on_start(str(name))
+            elif noti_type == NotificationType.Starting:
+                if on_start is not None:
+                    on_start(str(name))
+                if on_step is not None:
+                    # ``focus`` is only attached to the live node detail, and
+                    # the shape varies by node, so normalise it here.
+                    #
+                    # A node with ``focus`` produces *two* Starting events
+                    # (measured: 2 Starting / 1 Succeeded) — that is the extra
+                    # "focus callback" the framework documents. Succeeded is
+                    # unaffected, so round counters stay accurate; the step line
+                    # just receives the same text twice.
+                    on_step(
+                        str(name),
+                        focus_text(getattr(detail, "focus", None), str(name)),
+                    )
 
     return _NodeSink()
 
@@ -83,6 +140,7 @@ class LiteSession:
         self._started = False
         self._node_callback: Optional[Callable[[str], None]] = None
         self._node_start_callback: Optional[Callable[[str], None]] = None
+        self._step_callback: Optional[Callable[[str, Optional[str]], None]] = None
         self._agent_identifier = ""
         self._sink = None
         self._sink_id: Optional[int] = None
@@ -159,6 +217,12 @@ class LiteSession:
     def _import_maa(self):
         self._validate_assets()
         os.environ["MAAFW_BINARY_PATH"] = str(self.native_path)
+        # onnxruntime sizes its CPU arena per OpenMP thread. Measured on a
+        # 16-core box: the two OCR models commit ~1.5 GB at the default thread
+        # count vs ~1.1 GB at 4 threads, while throughput is unchanged
+        # (511 ms/op at 4 vs 544 ms at 16 -- if anything slightly better).
+        # Cap it unless the caller pinned a value.
+        os.environ.setdefault("OMP_NUM_THREADS", str(min(4, os.cpu_count() or 4)))
 
         from maa.agent_client import AgentClient
         from maa.controller import AdbController
@@ -266,12 +330,21 @@ class LiteSession:
                 Tasker.set_log_dir(str(debug_dir))
             except Exception:  # noqa: BLE001 - a missing log dir must not block
                 pass
+            # Nothing in Lite reads RecoDetail raw/draws, so the per-recognition
+            # frame cache is pure cost. The framework default is 4096 frames;
+            # a small window keeps the debug affordance without hoarding memory.
+            try:
+                Tasker.set_reco_image_cache_limit(64)
+            except Exception:  # noqa: BLE001 - older bindings may lack it
+                pass
             self._tasker.set_save_on_error(True)
             if not self._tasker.bind(self._resource, self._controller):
                 raise SessionError("Tasker failed to bind resource/controller")
 
-            self._sink = _make_node_sink(self._handle_node, self._handle_node_start)
-            self._sink_id = self._tasker.add_sink(self._sink)
+            self._sink = _make_node_sink(
+                self._handle_node, self._handle_node_start, self._handle_step
+            )
+            self._sink_id = self._tasker.add_context_sink(self._sink)
 
             identifier = f"lite-{os.getpid()}-{int(time.time())}"
             self._agent_identifier = identifier
@@ -490,6 +563,16 @@ class LiteSession:
         """Watch node starts (used by the stuck-loop guard)."""
         self._node_start_callback = callback
 
+    def set_step_callback(
+        self, callback: Optional[Callable[[str, Optional[str]], None]]
+    ) -> None:
+        """Watch node starts together with their ``focus`` text (console step).
+
+        The second argument is the human-readable progress line upstream stores
+        in the node's ``focus`` field, or ``None`` when the node has none.
+        """
+        self._step_callback = callback
+
     def _note(self, message: str, level: str = "warn") -> None:
         if self._logger is not None:
             try:
@@ -516,6 +599,16 @@ class LiteSession:
             callback(name)
         except Exception as error:  # noqa: BLE001
             self._note(f"节点开始回调出错（{name}）：{error}")
+
+    def _handle_step(self, name: str, text: Optional[str]) -> None:
+        callback = self._step_callback
+        if callback is None:
+            return
+        try:
+            callback(name, text)
+        except Exception as error:  # noqa: BLE001
+            # A broken display callback must not take the run down with it.
+            self._note(f"步骤进度回调出错（{name}）：{error}")
 
     def device_ready(self) -> bool:
         """Cheap ADB check used before each task."""
@@ -767,10 +860,11 @@ class LiteSession:
     def stop(self) -> None:
         if self._tasker is not None and self._sink_id is not None:
             self._guarded_step(
-                "移除监听", lambda: self._tasker.remove_sink(self._sink_id), 5.0
+                "移除监听", lambda: self._tasker.remove_context_sink(self._sink_id), 5.0
             )
             self._sink_id = None
         self._node_callback = None
+        self._step_callback = None
 
         if self._tasker is not None:
             try:
@@ -807,14 +901,13 @@ class LiteSession:
 
         if pending:
             agent_done = threading.Event()
+            if "_agent_client" not in pending:
+                # 没有 agent 就没人会 set，release_rest 会白等 3 秒。
+                agent_done.set()
 
             def destroy(name: str, obj: Any) -> None:
-                finalize = getattr(obj, "__del__", None)
-                if callable(finalize):
-                    try:
-                        finalize()
-                    except Exception:  # noqa: BLE001 - teardown must not raise
-                        pass
+                # 只销毁一次：句柄清空后 GC 再调 __del__ 就是空操作。
+                _release_native(obj)
                 if name == "_agent_client":
                     agent_done.set()
 
