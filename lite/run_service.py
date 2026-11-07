@@ -371,7 +371,11 @@ class RunService:
         return [dict(task) for task in self._preview]
 
     def start_daily(
-        self, training: str, include_dungeon: bool, resume: bool = False
+        self,
+        training: str,
+        include_dungeon: bool,
+        resume: bool = False,
+        names: list[str] | None = None,
     ) -> bool:
         if self._busy():
             return False
@@ -379,6 +383,8 @@ class RunService:
             raise ValueError("Invalid training choice")
         if resume and not self.can_resume():
             return False
+        if names is not None and not names:
+            raise ValueError("没有选中任何任务")
         self._cancel.clear()
         with self._lock:
             self._status = "starting"
@@ -390,7 +396,7 @@ class RunService:
             self._reset_logs()
         self._thread = threading.Thread(
             target=self._run_daily,
-            args=(training, include_dungeon, resume),
+            args=(training, include_dungeon, resume, names),
             name="maayuan-lite-runner",
             daemon=True,
         )
@@ -1186,7 +1192,11 @@ class RunService:
         return None
 
     def _run_daily(
-        self, training: str, include_dungeon: bool, resume: bool = False
+        self,
+        training: str,
+        include_dungeon: bool,
+        resume: bool = False,
+        names: list[str] | None = None,
     ) -> None:
         interface = json.loads(
             (self.project_root / "build" / "generated" / "interface.json").read_text(
@@ -1219,6 +1229,23 @@ class RunService:
             plan = build_plan(
                 profile, training=training, include_seasonal=include_dungeon
             )
+            # 界面现在允许勾选今天想做的任务：按 plan 顺序取子集，未选中的直接不跑。
+            if names is not None:
+                wanted = [name for name in names if name]
+                available = {item["name"] for item in plan["tasks"]}
+                missing = [name for name in wanted if name not in available]
+                if missing:
+                    self._log(
+                        f"这些任务今天不在计划里，已忽略：{'、'.join(missing)}", "warn"
+                    )
+                chosen = set(wanted)
+                plan = {
+                    **plan,
+                    "tasks": [item for item in plan["tasks"] if item["name"] in chosen],
+                    "count": sum(1 for item in plan["tasks"] if item["name"] in chosen),
+                }
+                if not plan["tasks"]:
+                    self._log("没有可执行的任务，本次运行结束。", "warn")
             with self._lock:
                 self._tasks = [
                     {
@@ -1233,7 +1260,11 @@ class RunService:
                 ]
                 self._plan = plan
         for skipped in plan["skipped"]:
-            self._log(f"跳过 {skipped['name']}：地宫开放期未开启。", "warn")
+            reason = {
+                "seasonal_daily_disabled": "活动未开启",
+                "time_window_closed": "不在开放时段",
+            }.get(skipped.get("reason"), skipped.get("reason"))
+            self._log(f"跳过 {skipped['name']}：{reason}。", "warn")
 
         session = self._make_session()
         with self._lock:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,14 +33,30 @@ def _resolve_choice(choice: dict[str, Any], selection: str | None) -> str:
     )
 
 
+def window_open(activity: dict[str, Any], now: datetime) -> bool:
+    """Whether a time-gated activity is open right now (local clock).
+
+    每日进膳 16:00 开放、24:00 结束，所以「开没开」完全由本机时间决定，
+    不需要用户手动开关。跨夜窗口（如 22:00–02:00）也支持。
+    """
+    start = int(activity.get("start_hour", 0))
+    end = int(activity.get("end_hour", 24))
+    hour = now.hour
+    if start <= end:
+        return start <= hour < end
+    return hour >= start or hour < end
+
+
 def build_plan(
     profile: dict[str, Any],
     *,
     training: str | None = None,
     include_seasonal: bool = True,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     tasks: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
+    moment = now or datetime.now()
 
     for item in profile["daily_order"]:
         item_type = item["type"]
@@ -55,11 +72,22 @@ def build_plan(
                 }
             )
         elif item_type == "optional_task":
-            if item.get("group") == "seasonal_daily" and not include_seasonal:
+            group = item.get("group")
+            if group == "seasonal_daily" and not include_seasonal:
                 skipped.append(
                     {
                         "name": item["name"],
                         "reason": "seasonal_daily_disabled",
+                    }
+                )
+                continue
+            if group == "time_window" and not window_open(
+                item.get("activity") or {}, moment
+            ):
+                skipped.append(
+                    {
+                        "name": item["name"],
+                        "reason": "time_window_closed",
                     }
                 )
                 continue

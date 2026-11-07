@@ -523,15 +523,27 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     return
                 if parsed.path == "/api/start":
                     dungeon_value = payload.get("dungeon")
-                    started = service.start_daily(
-                        training=str(payload.get("training", "修为")),
-                        include_dungeon=(
-                            seasonal_default_enabled()
-                            if dungeon_value is None
-                            else bool(dungeon_value)
-                        ),
-                        resume=bool(payload.get("resume", False)),
+                    # 界面可以只跑勾选的子集；不传 names 就是整条日常（旧行为）。
+                    raw_names = payload.get("names")
+                    names = (
+                        [str(name) for name in raw_names if str(name).strip()]
+                        if isinstance(raw_names, list)
+                        else None
                     )
+                    try:
+                        started = service.start_daily(
+                            training=str(payload.get("training", "修为")),
+                            include_dungeon=(
+                                seasonal_default_enabled()
+                                if dungeon_value is None
+                                else bool(dungeon_value)
+                            ),
+                            resume=bool(payload.get("resume", False)),
+                            names=names,
+                        )
+                    except ValueError as error:
+                        self._error("BAD_SELECTION", str(error), HTTPStatus.BAD_REQUEST)
+                        return
                     if started and not payload.get("resume"):
                         save_settings(
                             {

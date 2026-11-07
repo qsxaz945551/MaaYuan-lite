@@ -27,6 +27,23 @@
       "name": "💰 领月卡福利"
     },
     {
+      "type": "optional_task",
+      "name": "🍚 每日进膳",
+      "group": "time_window",
+      "label": "每日进膳",
+      "activity": {
+        "name": "每日进膳",
+        "mode": "time_window",
+        "start_hour": 16,
+        "end_hour": 24
+      },
+      "default_enabled": true,
+      "on_unavailable": "skip",
+      "timeout_sec": 900,
+      "retries": 0,
+      "note": "每天 16:00 开放、24:00 结束。由本地时间自动决定是否入链，不开就没有这一项，也不需要手动开关。"
+    },
+    {
       "type": "task",
       "name": "🏯 据点日常"
     },

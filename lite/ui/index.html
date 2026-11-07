@@ -123,6 +123,8 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
 .pane-tab:hover { color: var(--text); background: rgba(255,255,255,.03); }
 .pane-tab.active { background: var(--panel-2); color: var(--text); border-color: var(--line); }
 .pane-tab span { color: #55627a; font-size: 11px; margin-left: 5px; }
+.select-all { display: flex; align-items: center; gap: 5px; padding: 0 8px 0 4px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; white-space: nowrap; }
+.select-all input { width: 13px; height: 13px; accent-color: #8b7146; margin: 0; cursor: pointer; }
 .pane-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .crumb-root { color: #6d7b8e; font-size: 11px; white-space: nowrap; }
 .crumb-sep { color: #46536a; font-size: 11px; }
@@ -277,6 +279,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
         <span class="card-meta" id="connectionMeta">连接信息读取中</span>
       </div>
       <div class="pane-tabs" id="scopeTabs">
+        <label class="select-all" id="selectAllWrap"><input type="checkbox" id="selectAllDaily">全选</label>
         <button class="pane-tab active" type="button" data-scope="daily">今日日常<span id="dailyCount">0</span></button>
         <button class="pane-tab" type="button" data-scope="library">其他任务<span id="libraryCount">0</span></button>
       </div>
@@ -358,6 +361,7 @@ let libraryTasks = [];
 let libraryOpen = false;
 let listScope = "daily";
 const checkedTasks = new Set();
+let seenDaily = new Set();
 let automation = { startup_action: "none", shutdown_action: "none" };
 let lastTaskListSignature = "";
 let selectedTask = "";
@@ -391,6 +395,13 @@ async function fetchPlan(preferTraining = false) {
   if (data.error) { setNotice(data.error, true); return; }
   planTasks = data.tasks || [];
   planSkipped = data.skipped || [];
+  // 新出现的任务默认勾上：首次进界面、地宫/每日进膳刚开放。用户取消过的不会被重新勾回。
+  for (const task of planTasks) {
+    if (!seenDaily.has(task.name)) {
+      seenDaily.add(task.name);
+      checkedTasks.add(task.name);
+    }
+  }
   const preferred = TRAINING_TASKS[training];
   const names = planTasks.map(task => task.name);
   const staleTraining = trainingTypeOf(selectedTask) && !names.includes(selectedTask);
@@ -468,9 +479,8 @@ function taskRowHtml(task, label, single, withCheckbox = false) {
     flag = '<span class="badge seasonal">限时</span>';
   }
   const summary = optionSummary(task.name);
-  const marker = withCheckbox
-    ? `<label class="task-check"><input type="checkbox" data-check="${esc(task.name)}"${checkedTasks.has(task.name) ? " checked" : ""}></label>`
-    : `<span class="task-index">${label}</span>`;
+  const box = `<label class="task-check"><input type="checkbox" data-check="${esc(task.name)}"${checkedTasks.has(task.name) ? " checked" : ""}></label>`;
+  const marker = withCheckbox ? box : `${box}<span class="task-index">${label}</span>`;
   return `<div class="task-row${active}${selected}${failedCls}" data-name="${esc(task.name)}">
     ${marker}
     <span class="task-main">
@@ -507,12 +517,7 @@ function renderTaskList(force = false) {
   const shown = library ? libraryTasks : daily;
   const rows = shown
     .map((task, index) =>
-      taskRowHtml(
-        task,
-        library ? "·" : String(index + 1).padStart(2, "0"),
-        single,
-        library
-      )
+      taskRowHtml(task, String(index + 1).padStart(2, "0"), single, false)
     )
     .join("");
 
@@ -527,6 +532,20 @@ function renderTaskList(force = false) {
   if (selectedRow && selectedRow.scrollIntoView) {
     selectedRow.scrollIntoView({ block: "nearest" });
   }
+  syncSelectAll();
+}
+
+function currentPool() {
+  return listScope === "library" ? libraryTasks : planTasks;
+}
+
+function syncSelectAll() {
+  const wrap = $("selectAllWrap");
+  if (!wrap) return;
+  wrap.style.display = listScope === "library" ? "none" : "";
+  if (listScope === "library") return;
+  const pool = planTasks;
+  $("selectAllDaily").checked = pool.length > 0 && pool.every(task => checkedTasks.has(task.name));
 }
 
 function trainSwitchHtml(current) {
@@ -568,7 +587,7 @@ function renderOptionPanel() {
   const inLibrary = !inDaily;
   const tipText = inLibrary
     ? "点右上角「开始任务」单独执行这一项。"
-    : "该任务属于日常链，点右上角「开始日常」执行。";
+    : "勾选左侧这一项后，点右上角「开始任务」执行。";
   const tip = `<div class="opt-tip" style="margin-top:14px">${tipText}</div>`;
   if (!task || !task.groups.length) {
     $("optionMeta").textContent = "";
@@ -734,43 +753,46 @@ $("dungeonToggle").addEventListener("change", event => {
 });
 
 function syncStartButton() {
-  const library = listScope === "library";
   const busy = Boolean(lastState && lastState.busy);
-  const count = library ? checkedTasks.size : 0;
-  $("startBtn").textContent = library
-    ? (count ? `开始任务（${count}）` : "开始任务")
-    : "开始日常";
-  $("startBtn").disabled = busy || (library && !count && !selectedTask);
+  const count = currentPool().filter(task => checkedTasks.has(task.name)).length;
+  $("startBtn").textContent = count ? `开始任务（${count}）` : "开始任务";
+  $("startBtn").disabled = busy || !count;
 }
 
 $("startBtn").addEventListener("click", async () => {
   setNotice("");
-  if (listScope === "library") {
-    const ordered = libraryTasks
-      .map(task => task.name)
-      .filter(name => checkedTasks.has(name));
-    const names = ordered.length ? ordered : (selectedTask ? [selectedTask] : []);
-    if (!names.length) {
-      setNotice("请先勾选任务，或在左侧选择一项", true);
-      return;
-    }
-    const response = await fetch("/api/run-task", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ names })
-    });
-    const data = await response.json();
-    if (!response.ok) setNotice(data.error || "无法启动任务", true);
-    else setNotice(`正在运行 ${names.length} 项：${names.join(" → ")}`);
-    await refresh();
+  const library = listScope === "library";
+  const names = currentPool().map(task => task.name).filter(name => checkedTasks.has(name));
+  if (!names.length) {
+    setNotice("请先勾选要执行的任务", true);
     return;
   }
-  const response = await fetch("/api/start", {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({training, dungeon})
-  });
+  // 日常勾选走 /api/start：保留地宫探测、历练档位、超时表这些链上语义。
+  const response = library
+    ? await fetch("/api/run-task", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ names })
+      })
+    : await fetch("/api/start", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ training, dungeon, names })
+      });
   const data = await response.json();
-  if (!response.ok) setNotice(data.error || "无法开始任务", true);
+  if (!response.ok) setNotice(data.error || "无法启动任务", true);
+  else setNotice(`正在运行 ${names.length} 项：${names.join(" → ")}`);
   await refresh();
+});
+
+$("selectAllDaily").addEventListener("change", event => {
+  const pool = planTasks;
+  if (event.target.checked) {
+    for (const task of pool) checkedTasks.add(task.name);
+  } else {
+    for (const task of pool) checkedTasks.delete(task.name);
+  }
+  lastTaskListSignature = "";
+  renderTaskList();
+  syncStartButton();
 });
 
 $("resumeBtn").addEventListener("click", async () => {
@@ -919,6 +941,7 @@ $("taskList").addEventListener("change", event => {
   if (!box) return;
   const name = box.dataset.check;
   if (box.checked) checkedTasks.add(name); else checkedTasks.delete(name);
+  syncSelectAll();
   syncStartButton();
 });
 

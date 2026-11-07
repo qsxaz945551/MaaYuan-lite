@@ -68,7 +68,10 @@ public partial class MainWindow : Window
     private readonly List<string> _allTaskNames = new();
     private readonly List<string> _pinned = new();
     private readonly HashSet<string> _hidden = new();
-    private readonly HashSet<string> _checked = new();
+    private readonly HashSet<string> _dailyChecked = new();
+    private readonly HashSet<string> _libraryChecked = new();
+    private HashSet<string> _lastPlanNames = new();
+    private bool _syncingSelectAll;
     private readonly List<TaskEntry> _plan = new();
     private readonly List<TaskEntry> _library = new();
     private readonly List<TaskEntry> _stateTasks = new();
@@ -238,6 +241,15 @@ public partial class MainWindow : Window
         {
             _plan.Add(new TaskEntry(Str(task, "name"), Str(task, "kind")));
         }
+
+        // 新出现的任务默认勾上（第一次进界面、地宫/每日进膳刚开放）；用户主动
+        // 取消过的不会被重新勾回来，因为只处理"这次新出现的"。
+        var currentNames = _plan.Select(task => task.Name).ToHashSet();
+        foreach (var name in currentNames.Except(_lastPlanNames))
+        {
+            _dailyChecked.Add(name);
+        }
+        _lastPlanNames = currentNames;
 
         RebuildLibrary();
         if (!_plan.Any(task => task.Name == _selected))
@@ -548,7 +560,8 @@ public partial class MainWindow : Window
             rows.Select(task => $"{task.Name}:{StatusOf(task.Name)}:{task.Kind}")
                 .Append(_selected)
                 .Append(_scope)
-                .Append(_checked.Count.ToString()));
+                .Append(_dailyChecked.Count.ToString())
+                .Append(_libraryChecked.Count.ToString()));
         if (signature == _signature)
         {
             return;
@@ -601,6 +614,7 @@ public partial class MainWindow : Window
             }
         }
         selectedRow?.BringIntoView();
+        SyncSelectAll();
     }
 
     private FrameworkElement BuildRow(TaskEntry task, int index)
@@ -627,39 +641,51 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        var bucket = _scope == "library" ? _libraryChecked : _dailyChecked;
+        var check = new CheckBox
+        {
+            IsChecked = bucket.Contains(task.Name),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, _scope == "library" ? 9 : 6, 0),
+            ToolTip = "勾选后点右上角「开始任务」执行",
+        };
+        check.Checked += (_, _) =>
+        {
+            bucket.Add(task.Name);
+            SyncSelectAll();
+            UpdateStartButton();
+        };
+        check.Unchecked += (_, _) =>
+        {
+            bucket.Remove(task.Name);
+            SyncSelectAll();
+            UpdateStartButton();
+        };
+
         FrameworkElement marker;
         if (_scope == "library")
         {
-            var check = new CheckBox
-            {
-                IsChecked = _checked.Contains(task.Name),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 9, 0),
-            };
-            check.Checked += (_, _) =>
-            {
-                _checked.Add(task.Name);
-                UpdateStartButton();
-            };
-            check.Unchecked += (_, _) =>
-            {
-                _checked.Remove(task.Name);
-                UpdateStartButton();
-            };
             marker = check;
         }
         else
         {
-            marker = new TextBlock
+            // 日常行既要能勾选，也要保留执行序号。
+            var strip = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            strip.Children.Add(check);
+            strip.Children.Add(new TextBlock
             {
                 Text = (index + 1).ToString("00"),
                 Foreground = FaintBrush,
                 FontSize = 11,
-                Width = 22,
+                Width = 20,
                 TextAlignment = TextAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0),
-            };
+            });
+            marker = strip;
         }
         Grid.SetColumn(marker, 0);
         grid.Children.Add(marker);
@@ -911,7 +937,7 @@ public partial class MainWindow : Window
 
     private static TextBlock BuildTip(bool inDaily) => new()
     {
-        Text = inDaily ? "该任务属于日常链，点右上角「开始日常」执行。" : "点右上角「开始任务」单独执行这一项。",
+        Text = inDaily ? "勾选左侧这一项后，点右上角「开始任务」执行。" : "点右上角「开始任务」单独执行这一项。",
         Foreground = FaintBrush,
         FontSize = 11,
         TextWrapping = TextWrapping.Wrap,
@@ -1186,14 +1212,60 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- actions
 
+    /// <summary>
+    /// 「开始日常」与「开始任务」已经合并：按钮只执行当前列表里勾选的任务。
+    /// 日常勾选走 /api/start（保留地宫探测、历练档位、超时表等链上语义），
+    /// 其他任务勾选走 /api/run-task。
+    /// </summary>
     private void UpdateStartButton()
     {
-        var library = _scope == "library";
-        var count = library ? _checked.Count : 0;
-        StartButton.Content = library
-            ? (count > 0 ? $"开始任务（{count}）" : "开始任务")
-            : "开始日常";
-        StartButton.IsEnabled = !_busy && (!library || count > 0 || !string.IsNullOrEmpty(_selected));
+        var count = _scope == "library" ? _libraryChecked.Count : _dailyChecked.Count;
+        StartButton.Content = count > 0 ? $"开始任务（{count}）" : "开始任务";
+        StartButton.IsEnabled = !_busy && count > 0;
+        DailySelectAll.Visibility = _scope == "library" ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void SyncSelectAll()
+    {
+        if (_scope == "library")
+        {
+            return;
+        }
+        var rows = VisualDaily();
+        var all = rows.Count > 0 && rows.All(task => _dailyChecked.Contains(task.Name));
+        _syncingSelectAll = true;
+        DailySelectAll.IsChecked = all;
+        _syncingSelectAll = false;
+    }
+
+    private void OnDailySelectAll(object sender, RoutedEventArgs e)
+    {
+        if (_syncingSelectAll || _scope == "library")
+        {
+            return;
+        }
+        var rows = VisualDaily();
+        // 全选框只有两态：全选 / 全部取消。未开放的地宫、每日进膳根本不在
+        // rows 里，自然不受影响（用户 2026-11-07 的要求）。
+        var all = rows.Count > 0 && rows.All(task => _dailyChecked.Contains(task.Name));
+        if (all)
+        {
+            foreach (var task in rows)
+            {
+                _dailyChecked.Remove(task.Name);
+            }
+        }
+        else
+        {
+            foreach (var task in rows)
+            {
+                _dailyChecked.Add(task.Name);
+            }
+        }
+        _signature = "";
+        RenderTasks();
+        SyncSelectAll();
+        UpdateStartButton();
     }
 
     private void SetNotice(string message, bool error = false)
@@ -1207,14 +1279,10 @@ public partial class MainWindow : Window
         SetNotice("");
         if (_scope == "library")
         {
-            var names = _library.Select(task => task.Name).Where(_checked.Contains).ToList();
-            if (names.Count == 0 && !string.IsNullOrEmpty(_selected))
-            {
-                names.Add(_selected);
-            }
+            var names = _library.Select(task => task.Name).Where(_libraryChecked.Contains).ToList();
             if (names.Count == 0)
             {
-                SetNotice("请先勾选任务，或在左侧选择一项", true);
+                SetNotice("请先勾选要执行的任务", true);
                 return;
             }
             var ok = await _service.PostAsync("/api/run-task", new { names });
@@ -1223,10 +1291,25 @@ public partial class MainWindow : Window
             return;
         }
 
-        var started = await _service.PostAsync("/api/start", new { training = _training, dungeon = _dungeon });
+        var picked = VisualDaily().Select(task => task.Name).Where(_dailyChecked.Contains).ToList();
+        if (picked.Count == 0)
+        {
+            SetNotice("请先勾选今天要做的日常", true);
+            return;
+        }
+        var started = await _service.PostAsync("/api/start", new
+        {
+            training = _training,
+            dungeon = _dungeon,
+            names = picked,
+        });
         if (!started)
         {
             SetNotice(_service.LastMessage ?? "无法开始任务", true);
+        }
+        else
+        {
+            SetNotice($"正在执行 {picked.Count} 项：{string.Join(" → ", picked)}");
         }
         await RefreshAsync();
     }

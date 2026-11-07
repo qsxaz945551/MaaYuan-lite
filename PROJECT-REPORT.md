@@ -247,6 +247,8 @@ desktop/MaaYuanLite.Desktop/    18 个文件
 | **W10 历练类型**   | 选中「历练」时面板顶部出现修为/铜钱/经验三按钮，切换即重取 `/api/plan?training=` 并写回 `lastTraining`                                |
 | **W11 地宫开关**   | 控制条开关 → `lastDungeon` → 重取 `/api/plan?dungeon=`；运行中禁用                                                       |
 | **W12 状态口径**   | 资源不足提前收手记 `skipped_no_resource`：第二行行首加粗「未领取到资源」+ 琥珀徽章，失败任务名标红；汇总条单列「未领取」 |
+| **W13 可勾选日常** | 日常行也有勾选框，「开始日常」与「开始任务」合并为一个「开始任务（N）」，只跑勾选项；`/api/start` 接受 `names` 子集，仍走链上语义（地宫探测、历练档位、超时表） |
+| **W14 全选**      | 「今日日常」页签前的全选框：全选 / 全部取消当前列表；未开放的地宫、每日进膳不在列表内，天然不受影响 |
 | 更新徽章           | 三态：有更新（黄）/ 正在下载（蓝，带百分比与 MB）/ 待生效（点击可重启）                                                                |
 
 **顺手修的真 bug**：WPF 用 `--no-browser` 启动，而「启动时自动运行日常」写在该分支内 —— 这个设置从来没生效过。已移出，实测 `--no-browser` 下能自动开跑。
@@ -267,7 +269,7 @@ desktop/MaaYuanLite.Desktop/    18 个文件
 | 项                           | 内容                                                                                                                               |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `devtools/build_release.py` | `dotnet publish` → 重建 interface → 复制 runtime_env/assets/agent/lite/docs → 写 `start-lite.bat` → 产出 `dist/MaaYuan-Lite-<version>/` |
-| 产物                          | 343 MB / 2999 文件；`grep "Apps Game"` 为零                                                                                           |
+| 产物                          | 343 MB / 3000 文件；`grep "Apps Game"` 为零                                                                                           |
 | `devtools/smoke_release.py` | 对**已打包目录**做一次自检：起包内运行时 → `/api/meta` 版本 → `/api/health` → 可选 `/api/check`（只连接+截图）→ `/api/exit`。`--skip-game` 跳过连机 |
 | `devtools/upgrade.py`       | 默认预演，`--apply` 才执行；保留 `lite/*.json`、`runtime/`；配置先备份到 `runtime/upgrade-backup-<时间>/`                                             |
 | `NOTICE.md`                 | 11 个第三方组件及许可                                                                                                                     |

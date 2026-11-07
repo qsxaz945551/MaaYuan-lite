@@ -4,6 +4,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -151,6 +152,19 @@ class RunServiceTest(unittest.TestCase):
         self.entries = entry_map()
 
         # Isolated project root so runtime/last-run.json never touches the real one.
+        # 把「现在」钉在上午：每日进膳 16:00 后才入链，否则测试结果随采样时刻漂移。
+        import lite.run_service as _rs
+        from lite.daily_plan import build_plan as _build_plan
+
+        self._plan_patch = mock.patch(
+            "lite.run_service.build_plan",
+            lambda profile, **kwargs: _build_plan(
+                profile, now=datetime(2026, 11, 7, 9, 0), **kwargs
+            ),
+        )
+        self._plan_patch.start()
+        self._rs = _rs
+
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         (self.root / "build" / "generated").mkdir(parents=True)
@@ -166,6 +180,7 @@ class RunServiceTest(unittest.TestCase):
         }
 
     def tearDown(self):
+        self._plan_patch.stop()
         self._tmp.cleanup()
 
     def run_daily(self, service: RunService, **kwargs) -> None:
@@ -400,6 +415,27 @@ class RunServiceTest(unittest.TestCase):
         self.assertEqual(state["summary"]["failed"], 0)
         self.assertFalse(state["canResume"])
         self.assertNotIn(self.entries["🗡 地宫助手"], FakeSession.instances[-1].calls)
+
+    def test_only_selected_daily_tasks_run(self):
+        """界面勾选哪几项就只跑哪几项，顺序仍按日常链。"""
+        service = RunService(self.root, self.config)
+        picked = ["🔮 观星", "🔶 日常收尾"]
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(
+                service, training="修为", include_dungeon=False, names=picked
+            )
+
+        self.assertEqual(
+            FakeSession.instances[-1].calls, [self.entries[name] for name in picked]
+        )
+        self.assertEqual(
+            [task["name"] for task in service.snapshot()["tasks"]], picked
+        )
+
+    def test_empty_selection_is_rejected(self):
+        service = RunService(self.root, self.config)
+        with self.assertRaises(ValueError):
+            service.start_daily("修为", False, names=[])
 
     def test_resume_reruns_only_unfinished_tasks(self):
         watch = self.entries["🔮 观星"]
