@@ -31,6 +31,14 @@ SPECIAL_TRAINING_TEMPLATE = "special_training.png"
 SPECIAL_TRAINING_ROI = [2, 317, 717, 849]
 SPECIAL_TRAINING_THRESHOLD = 0.72
 
+# 活动页的「活动」标题是书法体，OCR 从来没读对过（2026-11-06 当日 13 次尝试
+# 全灭），于是 `已在界面-活动-向下滑` 一次也没触发过 —— 卡片只要在折叠线下方，
+# 就永远滑不到。标题本身是静止的背景画，用模板匹配稳定得多。
+# 图取自 2026-11-07 10:05 的原生截图，OpenCV 自匹配 1.000、异页 0.23。
+ACTIVITY_TITLE_TEMPLATE = "activity_title.png"
+ACTIVITY_TITLE_ROI = [250, 230, 220, 140]
+ACTIVITY_TITLE_THRESHOLD = 0.8
+
 FIXES: dict[str, dict[str, Any]] = {
     # 日常收尾：领取密探特训奖励（2026-11-06 实跑失败后定位）
     "日常收尾启动": {
@@ -50,6 +58,17 @@ FIXES: dict[str, dict[str, Any]] = {
                     "template": SPECIAL_TRAINING_TEMPLATE,
                     "roi": list(SPECIAL_TRAINING_ROI),
                     "threshold": SPECIAL_TRAINING_THRESHOLD,
+                },
+            }
+        },
+        # 同一页的「向下滑」分支：只换识别，滑动动作与 post_delay 保持上游原样。
+        "已在界面-活动-向下滑": {
+            "recognition": {
+                "type": "TemplateMatch",
+                "param": {
+                    "template": ACTIVITY_TITLE_TEMPLATE,
+                    "roi": list(ACTIVITY_TITLE_ROI),
+                    "threshold": ACTIVITY_TITLE_THRESHOLD,
                 },
             }
         },

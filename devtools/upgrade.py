@@ -26,6 +26,8 @@ KEEP = [
     "on_error",
     "assets/config",
     "assets/.source.json",
+    # Lite 自己加的模板图（上游没有这张），升级时不能被资源包冲掉。
+    "assets/resource/base/image/activity_title.png",
 ]
 
 # What an upgrade actually replaces.
@@ -42,10 +44,24 @@ def _copy_file(source: Path, target: Path) -> None:
     shutil.copy2(source, target)
 
 
-def _copy_tree(source: Path, target: Path) -> None:
+def _kept(relative: str) -> bool:
+    return any(relative == item or relative.startswith(item + "/") for item in KEEP)
+
+
+def _copy_tree(source: Path, target: Path, prefix: str) -> None:
+    """Copy a replaced folder while honouring KEEP.
+
+    KEEP used to be consulted by the dry run only, so ``plan()`` promised to
+    leave a file alone and ``--apply`` overwrote it anyway. Patch images under
+    assets/resource live exactly in that blind spot.
+    """
     if not source.is_dir():
         return
-    shutil.copytree(source, target, dirs_exist_ok=True)
+    for path in _files_of(source):
+        relative = f"{prefix}/{path.relative_to(source).as_posix()}"
+        if _kept(relative):
+            continue
+        _copy_file(path, target / path.relative_to(source))
 
 
 def plan(source: Path, target: Path) -> list[str]:
@@ -60,10 +76,9 @@ def plan(source: Path, target: Path) -> list[str]:
         src = source / name
         if not src.is_dir():
             continue
-        keep_prefixes = tuple(item for item in KEEP if item.startswith(name + "/") or item == name)
         for path in _files_of(src):
             relative = path.relative_to(source).as_posix()
-            if any(relative == prefix or relative.startswith(prefix + "/") for prefix in keep_prefixes):
+            if _kept(relative):
                 continue
             dst = target / relative
             if not dst.is_file() or dst.stat().st_size != path.stat().st_size:
@@ -126,7 +141,7 @@ def main() -> int:
                     continue
                 _copy_file(path, target / relative)
         else:
-            _copy_tree(src, target / name)
+            _copy_tree(src, target / name, name)
 
     print("升级完成。建议先运行：runtime_env\\python\\python.exe app.py --selftest")
     return 0

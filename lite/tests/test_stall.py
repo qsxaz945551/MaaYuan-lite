@@ -128,8 +128,9 @@ class StallClassificationTest(unittest.TestCase):
         outcome = service._classify_result(
             session, "📜 鸢报四连 - 日常专用", {"stalled": True}, 150.0
         )
-        self.assertEqual(outcome["status"], "succeeded")
-        self.assertIn("体力", outcome["reason"])
+        # 2026-11-07 起：体力耗尽不再是"成功"，而是单独记「未领取到资源」。
+        self.assertEqual(outcome["status"], "skipped_no_resource")
+        self.assertIn("资源", outcome["reason"])
         # 对话框必须被关掉，否则它会挡住后面每一项任务
         self.assertEqual(session.taps, [run_service.STAMINA_DIALOG_CLOSE])
 

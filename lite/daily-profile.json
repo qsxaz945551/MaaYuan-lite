@@ -35,6 +35,10 @@
       "name": "🔮 观星"
     },
     {
+      "type": "task",
+      "name": "📜 鸢报四连 - 日常专用"
+    },
+    {
       "type": "choice",
       "id": "training",
       "label": "历练类型",
@@ -71,32 +75,51 @@
           {
             "type": "TemplateMatch",
             "param": {
-              "template": ["mainmap/deepdungeon.png"],
-              "roi": [531, 44, 52, 68],
-              "threshold": [0.8]
+              "template": [
+                "mainmap/deepdungeon.png"
+              ],
+              "roi": [
+                531,
+                44,
+                52,
+                68
+              ],
+              "threshold": [
+                0.8
+              ]
             }
           },
           {
             "type": "TemplateMatch",
             "param": {
-              "template": ["mainmap/digong.png"],
-              "roi": [335, 446, 183, 150]
+              "template": [
+                "mainmap/digong.png"
+              ],
+              "roi": [
+                335,
+                446,
+                183,
+                150
+              ]
             }
           },
           {
             "type": "OCR",
             "param": {
-              "expected": ["地宫"],
-              "roi": [335, 446, 183, 150]
+              "expected": [
+                "地宫"
+              ],
+              "roi": [
+                335,
+                446,
+                183,
+                150
+              ]
             }
           }
         ]
       },
       "note": "限时活动日常，固定插在白鹄扫荡之后。默认关闭；开放期打开。执行前先做只读入口探测，探测不到地宫入口（活动未开放或不在主界面）则直接跳过，不等待超时，也不阻断日常收尾。"
-    },
-    {
-      "type": "task",
-      "name": "📜 鸢报四连 - 日常专用"
     },
     {
       "type": "task",

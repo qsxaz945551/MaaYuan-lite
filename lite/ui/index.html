@@ -148,6 +148,8 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
 .task-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .task-sub { color: #66748a; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task-flag { color: var(--amber); font-size: 10px; }
+.task-note { color: var(--amber); font-weight: 600; }
+.task-row.failed .task-name { color: var(--red); }
 .option-panel { padding: 14px 18px 18px; overflow: auto; flex: 1; }
 .opt-row { display: grid; grid-template-columns: minmax(92px, 132px) 1fr; gap: 10px; align-items: center; padding: 6px 0; }
 .opt-label { color: var(--muted); font-size: 12px; line-height: 1.35; }
@@ -307,6 +309,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
       <div class="summary">
         <span>成功 <b id="okCount">0</b></span>
         <span>失败 <b id="failCount">0</b></span>
+        <span id="skipWrap" style="display:none">未领取 <b id="skipCount">0</b></span>
         <span>状态 <b id="summaryState">待机</b></span>
       </div>
     </section>
@@ -319,7 +322,7 @@ const statusMap = {
   completed: "日常完成", completed_with_errors: "完成但有失败", cancelled: "已停止", error: "运行异常",
   interrupted: "上次未完成"
 };
-const taskStatusMap = { pending: "等待", running: "执行中", succeeded: "完成", failed: "失败", timed_out: "超时", skipped: "跳过", cancelled: "已停止" };
+const taskStatusMap = { pending: "等待", running: "执行中", succeeded: "完成", failed: "失败", timed_out: "超时", skipped: "跳过", cancelled: "已停止", skipped_no_resource: "未领取" };
 const TRAINING_TASKS = { 修为: "💎 修为历练", 铜钱: "💲 铜钱历练", 经验: "⚔️ 经验历练" };
 const TRAINING_BUTTONS = { 修为: "💎 修为", 铜钱: "💲 铜钱", 经验: "⚔️ 经验" };
 
@@ -434,6 +437,14 @@ function mergeHistory(tasks, history) {
   });
 }
 
+function subLine(summary, status) {
+  // 「未领取到资源」放行首：接在任务名后面会被省略号吃掉。
+  const parts = [];
+  if (status === "skipped_no_resource") parts.push('<b class="task-note">未领取到资源</b>');
+  if (summary) parts.push(esc(summary));
+  return parts.length ? `<span class="task-sub">${parts.join(" · ")}</span>` : "";
+}
+
 function taskRowHtml(task, label, single, withCheckbox = false) {
   const result = single && Array.isArray(single.results)
     ? single.results.find(item => item.name === task.name)
@@ -442,8 +453,9 @@ function taskRowHtml(task, label, single, withCheckbox = false) {
     ? result.status
     : (single && single.name === task.name ? single.status : task.status);
   const running = status === "running" || status === "pending";
-  const active = running ? " active" : (status === "succeeded" || status === "failed" || status === "timed_out" || status === "cancelled" || status === "skipped") ? " done" : "";
+  const active = running ? " active" : (status === "succeeded" || status === "failed" || status === "timed_out" || status === "cancelled" || status === "skipped" || status === "skipped_no_resource") ? " done" : "";
   const selected = task.name === selectedTask ? " selected" : "";
+  const failedCls = (status === "failed" || status === "timed_out") ? " failed" : "";
   let flag = "";
   if (status) {
     const cls = status === "succeeded" ? "success"
@@ -459,11 +471,11 @@ function taskRowHtml(task, label, single, withCheckbox = false) {
   const marker = withCheckbox
     ? `<label class="task-check"><input type="checkbox" data-check="${esc(task.name)}"${checkedTasks.has(task.name) ? " checked" : ""}></label>`
     : `<span class="task-index">${label}</span>`;
-  return `<div class="task-row${active}${selected}" data-name="${esc(task.name)}">
+  return `<div class="task-row${active}${selected}${failedCls}" data-name="${esc(task.name)}">
     ${marker}
     <span class="task-main">
       <span class="task-name">${esc(taskIcon(task.name) + taskLabel(task.name))}</span>
-      ${summary ? `<span class="task-sub">${esc(summary)}</span>` : ""}
+      ${subLine(summary, status)}
     </span>
     ${flag}
   </div>`;
@@ -674,6 +686,9 @@ async function refresh() {
     }
     $("okCount").textContent = state.summary && state.summary.succeeded != null ? state.summary.succeeded : "0";
     $("failCount").textContent = state.summary && state.summary.failed != null ? state.summary.failed : "0";
+    const skipped = state.summary && state.summary.skipped ? state.summary.skipped : 0;
+    $("skipCount").textContent = String(skipped);
+    $("skipWrap").style.display = skipped ? "" : "none";
     $("connectionMeta").textContent = state.config ? `${state.config.adbSerial} · 简中` : "";
     $("resumeBtn").disabled = state.busy || !state.canResume;
     $("checkBtn").disabled = state.busy;

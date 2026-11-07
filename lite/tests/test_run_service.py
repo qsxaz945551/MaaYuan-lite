@@ -325,7 +325,7 @@ class RunServiceTest(unittest.TestCase):
         with mock.patch("lite.run_service.LiteSession", FakeSession):
             self.run_daily(service, training="修为", include_dungeon=False)
             before = service.snapshot()
-            self.assertEqual(before["summary"], {"succeeded": 8, "failed": 0})
+            self.assertEqual(before["summary"], {"succeeded": 8, "failed": 0, "skipped": 0})
 
             target = "🏰 邺城之战V3"
             self.assertTrue(service.run_single(target))
@@ -379,7 +379,7 @@ class RunServiceTest(unittest.TestCase):
 
         state = service.snapshot()
         self.assertEqual(state["status"], "completed")
-        self.assertEqual(state["summary"], {"succeeded": 8, "failed": 0})
+        self.assertEqual(state["summary"], {"succeeded": 8, "failed": 0, "skipped": 0})
         self.assertFalse(state["canResume"])
 
         restarted = RunService(self.root, self.config)
@@ -417,7 +417,7 @@ class RunServiceTest(unittest.TestCase):
         self.assertEqual(FakeSession.instances[-1].calls, [watch])
         state = service.snapshot()
         self.assertEqual(state["status"], "completed")
-        self.assertEqual(state["summary"], {"succeeded": 8, "failed": 0})
+        self.assertEqual(state["summary"], {"succeeded": 8, "failed": 0, "skipped": 0})
 
     def test_unfinished_run_survives_restart(self):
         watch = self.entries["🔮 观星"]
@@ -442,7 +442,7 @@ class RunServiceTest(unittest.TestCase):
             )
 
         self.assertEqual(FakeSession.instances[-1].calls, [watch])
-        self.assertEqual(restarted.snapshot()["summary"], {"succeeded": 8, "failed": 0})
+        self.assertEqual(restarted.snapshot()["summary"], {"succeeded": 8, "failed": 0, "skipped": 0})
 
     def test_connection_check_keeps_daily_record(self):
         """A connection check must not wipe the record "继续未完成" relies on."""

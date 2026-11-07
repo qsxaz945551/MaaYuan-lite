@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -442,6 +443,14 @@ public partial class MainWindow : Window
         }
         OkCount.Text = ok.ToString();
         FailCount.Text = fail.ToString();
+        var skipped = 0;
+        if (root.TryGetProperty("summary", out var summaryBox))
+        {
+            skipped = Int(summaryBox, "skipped");
+        }
+        SkipLabel.Visibility = skipped > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SkipCount.Visibility = SkipLabel.Visibility;
+        SkipCount.Text = skipped.ToString();
 
         var singleActive = _singleStatus is "pending" or "running";
         var label = StatusLabel(_runStatus);
@@ -656,24 +665,43 @@ public partial class MainWindow : Window
         grid.Children.Add(marker);
 
         var main = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var failed = status is "failed" or "timed_out";
         main.Children.Add(new TextBlock
         {
             Text = DisplayName(task.Name),
-            Foreground = TextBrush,
+            Foreground = failed ? RedBrush : TextBrush,
             FontSize = 13,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
+
+        // 「未领取到资源」放第二行行首：跟在任务名后面会被省略号吃掉，
+        // 而这句正是这一行最该看见的东西。
         var summary = OptionSummary(task.Name);
-        if (!string.IsNullOrEmpty(summary))
+        if (status == "skipped_no_resource" || !string.IsNullOrEmpty(summary))
         {
-            main.Children.Add(new TextBlock
+            var sub = new TextBlock
             {
-                Text = summary,
-                Foreground = SubBrush,
                 FontSize = 11,
                 Margin = new Thickness(0, 2, 0, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
-            });
+            };
+            if (status == "skipped_no_resource")
+            {
+                sub.Inlines.Add(new Run("未领取到资源")
+                {
+                    FontWeight = FontWeights.Bold,
+                    Foreground = AmberBrush,
+                });
+                if (!string.IsNullOrEmpty(summary))
+                {
+                    sub.Inlines.Add(new Run(" · " + summary) { Foreground = SubBrush });
+                }
+            }
+            else
+            {
+                sub.Inlines.Add(new Run(summary) { Foreground = SubBrush });
+            }
+            main.Children.Add(sub);
         }
         Grid.SetColumn(main, 1);
         grid.Children.Add(main);
@@ -711,6 +739,8 @@ public partial class MainWindow : Window
             "timed_out" => Badge("超时", AmberBrush, Frozen(0x5F, 0x4C, 0x2F), FrozenA(0x12, 0xD8, 0xA8, 0x5F)),
             "skipped" => Badge("跳过", MutedBrush, Frozen(0x3A, 0x46, 0x58), Brushes.Transparent),
             "cancelled" => Badge("已停止", MutedBrush, Frozen(0x3A, 0x46, 0x58), Brushes.Transparent),
+            "skipped_no_resource" => Badge("未领取", AmberBrush, Frozen(0x5F, 0x4C, 0x2F),
+                FrozenA(0x12, 0xD8, 0xA8, 0x5F)),
             "running" or "pending" => Badge(TaskStatusLabel(status), BlueBrush, Frozen(0x35, 0x4D, 0x6D),
                 FrozenA(0x0F, 0x7F, 0xA7, 0xD9)),
             _ => Badge(TaskStatusLabel(status), MutedBrush, Frozen(0x3A, 0x46, 0x58), Brushes.Transparent),
@@ -721,6 +751,7 @@ public partial class MainWindow : Window
     {
         "pending" => "等待",
         "running" => "执行中",
+        "skipped_no_resource" => "未领取",
         _ => status,
     };
 

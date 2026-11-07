@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from lite.pipeline_fixes import (
+    ACTIVITY_TITLE_ROI,
+    ACTIVITY_TITLE_TEMPLATE,
+    ACTIVITY_TITLE_THRESHOLD,
     SPECIAL_TRAINING_TEMPLATE,
     SPECIAL_TRAINING_THRESHOLD,
     apply_pipeline_fixes,
 )
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class PipelineFixesTest(unittest.TestCase):
@@ -63,6 +69,30 @@ class ActivityPageTest(unittest.TestCase):
             SPECIAL_TRAINING_THRESHOLD,
         )
         self.assertLess(SPECIAL_TRAINING_THRESHOLD, 0.8)
+
+    def test_scroll_branch_uses_the_title_template(self):
+        """卡片在折叠线下方时要靠「向下滑」，而这条分支原来用 OCR 认书法体。"""
+        override = apply_pipeline_fixes("日常收尾启动", {})
+        recognition = override["已在界面-活动-向下滑"]["recognition"]
+
+        self.assertEqual(recognition["type"], "TemplateMatch")
+        self.assertEqual(recognition["param"]["template"], ACTIVITY_TITLE_TEMPLATE)
+        self.assertEqual(recognition["param"]["threshold"], ACTIVITY_TITLE_THRESHOLD)
+
+    def test_scroll_branch_keeps_the_upstream_swipe(self):
+        """只换识别，滑动动作由上游保留（override 里不该出现 action）。"""
+        override = apply_pipeline_fixes("日常收尾启动", {})
+        self.assertNotIn("action", override["已在界面-活动-向下滑"])
+
+    def test_title_roi_covers_the_crop(self):
+        """模板是从 ROI 里裁的：ROI 必须能容纳它，否则永远匹配不上。"""
+        from PIL import Image
+
+        path = Path(ROOT / "assets" / "resource" / "base" / "image" / ACTIVITY_TITLE_TEMPLATE)
+        self.assertTrue(path.is_file(), "模板图不在资源目录里")
+        width, height = Image.open(path).size
+        self.assertLessEqual(width, ACTIVITY_TITLE_ROI[2])
+        self.assertLessEqual(height, ACTIVITY_TITLE_ROI[3])
 
 
 class IrReportBatchCollectTest(unittest.TestCase):

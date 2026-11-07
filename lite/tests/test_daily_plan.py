@@ -44,7 +44,11 @@ class DailyPlanTest(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(plan["count"], 9)
         self.assertEqual(names[-1], "🔶 日常收尾")
-        self.assertEqual(names[-2], "📜 鸢报四连 - 日常专用")
+        self.assertEqual(names[-2], "🗡 地宫助手")
+        # 鸢报提到历练之前：先把不花体力的收掉，再按剩余体力决定历练档位。
+        self.assertLess(
+            names.index("📜 鸢报四连 - 日常专用"), names.index("💎 修为历练")
+        )
 
     def test_seasonal_daily_is_off_by_default(self):
         items = [

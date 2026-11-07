@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,41 @@ STAMINA_TASKS = ("历练", "白鹄", "地宫", "鸢报")
 
 def _consumes_stamina(name: str) -> bool:
     return any(hint in name for hint in STAMINA_TASKS)
+
+
+# 任务跑完 ≠ 拿到奖励。这两个信号表示「资源不足、主动收手」：
+#   · 气力值回复弹窗 —— 历练 / 白鹄 / 地宫 卡在这里；
+#   · 节点名含「不吃鸟食」—— 鸢报的鸟食没了，直接收手。
+# 命中后任务记 skipped_no_resource，单独计数，不污染成功率（用户 2026-11-07 定）。
+RESOURCE_MARKERS = ("不吃鸟食",)
+
+# 这些任务的目标本来就是「把资源刷干」，刷干即完成，不该挂「未领取到资源」。
+GRIND_TASKS = ("刷到体力耗尽",)
+
+
+def _is_grind(name: str) -> bool:
+    return any(hint in name for hint in GRIND_TASKS)
+
+
+# 跨日的分界线不是 00:00 而是 05:00：凌晨还在跑前一天没跑完的日常是常态，
+# 用零点切会把刚跑了一半的记录作废（用户 2026-11-07 定）。
+DAY_CUTOFF_HOUR = 5
+
+
+def day_window_start(now: datetime | None = None) -> datetime:
+    """Start of the current 日常 day, i.e. the most recent 05:00."""
+    moment = now or datetime.now()
+    start = moment.replace(hour=DAY_CUTOFF_HOUR, minute=0, second=0, microsecond=0)
+    if moment < start:
+        start -= timedelta(days=1)
+    return start
+
+
+def parse_stamp(value: str) -> datetime | None:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return None
 
 
 # The system ANR dialog, measured on a 720x1280 capture: title around y=478,
@@ -108,6 +143,9 @@ class RunService:
         self._guard_event = threading.Event()
         self._guard_node = ""
         self._last_node_time = time.monotonic()
+        # Set when a node proves the task stopped early for lack of resources
+        # (bird food gone). Reset per job, read by _classify_result.
+        self._resource_hit = False
         self._logs: deque[dict[str, Any]] = deque(maxlen=2000)
         self._log_seq = 0
         # Stable per process; clients use a change to resync after a restart.
@@ -202,6 +240,19 @@ class RunService:
             return
         if not tasks or not isinstance(plan, dict):
             return
+
+        # 昨天的记录不能拿来续跑：跨过 05:00 就作废（见 DAY_CUTOFF_HOUR）。
+        stamp = parse_stamp(str(data.get("finishedAt") or "")) or parse_stamp(
+            str(data.get("updatedAt") or "")
+        )
+        if stamp is None or stamp < day_window_start():
+            self._log("上次运行记录已跨日（05:00 为界），作废，不再提供续跑。", "warn")
+            try:
+                self._state_file.unlink()
+            except OSError:
+                pass
+            return
+
         self._tasks = [dict(task) for task in tasks]
         self._plan = plan
         self._summary = data.get("summary") or {}
@@ -481,18 +532,33 @@ class RunService:
             if summary is not None:
                 self._summary = summary
 
-    def _tally(self) -> tuple[int, int]:
+    def _tally(self) -> tuple[int, int, int]:
         """Count finished tasks by outcome. Reading under the lock keeps the
-        two numbers consistent with what snapshot() will publish."""
+        numbers consistent with what snapshot() will publish.
+
+        ``skipped_no_resource`` is its own bucket: the task did finish, but it
+        stopped early because stamina/bird food ran out, so counting it as a
+        success overstates the day and counting it as a failure punishes the
+        emulator's resources rather than the code.
+        """
         with self._lock:
             succeeded = sum(1 for task in self._tasks if task["status"] == "succeeded")
             failed = sum(
                 1 for task in self._tasks if task["status"] in {"failed", "timed_out"}
             )
-        return succeeded, failed
+            skipped = sum(
+                1 for task in self._tasks if task["status"] == "skipped_no_resource"
+            )
+        return succeeded, failed, skipped
 
     def _finalize_run(
-        self, *, aborted: bool, cancelled: bool, succeeded: int, failed: int
+        self,
+        *,
+        aborted: bool,
+        cancelled: bool,
+        succeeded: int,
+        failed: int,
+        skipped: int = 0,
     ) -> str:
         """Decide the terminal status and summary in one place.
 
@@ -509,7 +575,11 @@ class RunService:
                 self._status = "completed_with_errors"
             else:
                 self._status = "completed"
-            self._summary = {"succeeded": succeeded, "failed": failed}
+            self._summary = {
+                "succeeded": succeeded,
+                "failed": failed,
+                "skipped": skipped,
+            }
             return self._status
 
     def _execute_job(
@@ -533,6 +603,7 @@ class RunService:
         """
         begin = started if started is not None else time.monotonic()
         self._last_node_time = begin
+        self._resource_hit = False
         self._log(f"{announce}：{name}")
         session.set_node_callback(self._make_round_handler(entry))
         session.set_step_callback(self._make_step_handler(name))
@@ -564,6 +635,7 @@ class RunService:
             self._single["status"] = "running"
         total = len(jobs)
         failures = 0
+        skipped = 0
         aborted = False
         try:
             session.start()
@@ -595,6 +667,8 @@ class RunService:
                 restart_failed = outcome["restart_failed"]
                 if status in {"failed", "timed_out"}:
                     failures += 1
+                elif status == "skipped_no_resource":
+                    skipped += 1
                 with self._lock:
                     self._single["results"].append(
                         {"name": name, "status": status, "duration": duration}
@@ -611,12 +685,15 @@ class RunService:
             self._finalize_run(
                 aborted=aborted,
                 cancelled=self._cancel.is_set(),
-                succeeded=done - failures,
+                succeeded=done - failures - skipped,
                 failed=failures,
+                skipped=skipped,
             )
             if total > 1:
+                extra = f"，未领取 {skipped} 项" if skipped else ""
                 self._log(
-                    f"批量结束：共 {total} 项，成功 {done - failures} 项，失败 {failures} 项。"
+                    f"批量结束：共 {total} 项，成功 {done - failures - skipped} 项，"
+                    f"失败 {failures} 项{extra}。"
                 )
         except Exception as error:
             with self._lock:
@@ -716,6 +793,10 @@ class RunService:
 
         def handle(node_name: str) -> None:
             self._last_node_time = time.monotonic()
+            # 资源不足的节点要先记下来：鸢报走到「不吃鸟食」等于这轮放弃了，
+            # 框架仍报 success，靠这个标记才能改成 skipped_no_resource。
+            if any(marker in node_name for marker in RESOURCE_MARKERS):
+                self._resource_hit = True
             if not labels:
                 return
             label = labels.get(node_name)
@@ -934,6 +1015,8 @@ class RunService:
             "reason": "失败",
             "restart_failed": False,
         }
+        # 体力弹窗 / 鸟食断供都会走到这里，二者都算「资源不足提前收手」。
+        resource_short = False
 
         if self._guard_event.is_set() and not self._cancel.is_set():
             outcome["reason"] = f"疑似死循环（{self._guard_node}）"
@@ -966,6 +1049,7 @@ class RunService:
             if _consumes_stamina(name) and self._stamina_exhausted(session):
                 outcome["status"] = "succeeded"
                 outcome["reason"] = "体力耗尽，已结束"
+                resource_short = True
                 self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
                 self._back_to_main(session, name)
             else:
@@ -1001,6 +1085,7 @@ class RunService:
         elif _consumes_stamina(name) and self._stamina_exhausted(session):
             outcome["status"] = "succeeded"
             outcome["reason"] = "体力耗尽，已结束"
+            resource_short = True
             self._log(f"体力耗尽，任务结束：{name}（{duration}s）")
             self._back_to_main(session, name)
         else:
@@ -1010,6 +1095,21 @@ class RunService:
             self._warn_if_landscape(session)
             self._capture_failure(session, name)
             self._recover_after_failure(session, name)
+
+        # 「跑完」和「拿到奖励」是两件事（用户 2026-11-07 定义）：资源不足导致
+        # 提前收手的任务单独记一个状态，既不算失败，也不冒充成功。
+        #
+        # 只认吃体力的任务：`new不吃鸟食` 这个名字密探特训也在用（focus 是
+        # 「行动次数已耗尽」），那是"今天已经做过一轮"，不是没拿到资源。
+        if (
+            outcome["status"] == "succeeded"
+            and _consumes_stamina(name)
+            and not _is_grind(name)
+        ):
+            if resource_short or self._resource_hit:
+                outcome["status"] = "skipped_no_resource"
+                outcome["reason"] = "资源不足，未领取到资源"
+                self._log(f"资源不足，未领取到资源：{name}（{duration}s）", "warn")
 
         return outcome
 
@@ -1261,16 +1361,21 @@ class RunService:
                 # loop has no next iteration to notice it.
                 cancelled = True
 
-            succeeded, failed = self._tally()
+            succeeded, failed, skipped = self._tally()
             self._finalize_run(
-                aborted=aborted, cancelled=cancelled, succeeded=succeeded, failed=failed
+                aborted=aborted,
+                cancelled=cancelled,
+                succeeded=succeeded,
+                failed=failed,
+                skipped=skipped,
             )
             if not aborted:
                 if cancelled:
                     self._log("本次运行已停止。", "warn")
                 else:
+                    extra = f"，未领取 {skipped} 项" if skipped else ""
                     self._log(
-                        f"日常链结束：成功 {succeeded} 项，失败 {failed} 项。",
+                        f"日常链结束：成功 {succeeded} 项，失败 {failed} 项{extra}。",
                         "warn" if failed else "info",
                     )
                     if load_settings().get("shutdown_action", "none") == "none":

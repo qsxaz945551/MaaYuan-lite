@@ -34,7 +34,7 @@ class FinalizeTest(unittest.TestCase):
             aborted=True, cancelled=False, succeeded=2, failed=1
         )
         self.assertEqual(status, "error")
-        self.assertEqual(service._summary, {"succeeded": 2, "failed": 1})
+        self.assertEqual(service._summary, {"succeeded": 2, "failed": 1, "skipped": 0})
 
     def test_cancelled_is_not_error(self) -> None:
         # Stop pressed by the user must not look like a failure.
@@ -79,10 +79,10 @@ class TallyTest(unittest.TestCase):
                 {"status": "running"},
             ]
         )
-        self.assertEqual(service._tally(), (2, 2))
+        self.assertEqual(service._tally(), (2, 2, 0))
 
     def test_empty(self) -> None:
-        self.assertEqual(make_service()._tally(), (0, 0))
+        self.assertEqual(make_service()._tally(), (0, 0, 0))
 
 
 class UpdateTaskTest(unittest.TestCase):
@@ -110,11 +110,11 @@ class UpdateRunTest(unittest.TestCase):
     def test_sets_all_three(self) -> None:
         service = make_service()
         service._update_run(
-            status="completed", current_task="", summary={"succeeded": 8, "failed": 0}
+            status="completed", current_task="", summary={"succeeded": 8, "failed": 0, "skipped": 0}
         )
         self.assertEqual(service._status, "completed")
         self.assertEqual(service._current_task, "")
-        self.assertEqual(service._summary, {"succeeded": 8, "failed": 0})
+        self.assertEqual(service._summary, {"succeeded": 8, "failed": 0, "skipped": 0})
 
 
 class ResumeMismatchTest(unittest.TestCase):

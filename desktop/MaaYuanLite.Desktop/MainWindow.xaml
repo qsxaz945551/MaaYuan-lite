@@ -228,6 +228,10 @@
                             <TextBlock x:Name="OkCount" Text="0" FontSize="12" Margin="6,0,18,0"/>
                             <TextBlock Text="失败" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
                             <TextBlock x:Name="FailCount" Text="0" FontSize="12" Margin="6,0,18,0"/>
+                            <TextBlock x:Name="SkipLabel" Text="未领取" Visibility="Collapsed"
+                                       Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                            <TextBlock x:Name="SkipCount" Text="0" FontSize="12" Margin="6,0,18,0"
+                                       Visibility="Collapsed" Foreground="{StaticResource AmberBrush}"/>
                             <TextBlock Text="状态" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
                             <TextBlock x:Name="SummaryState" Text="待机" FontSize="12" Margin="6,0,0,0"/>
                         </StackPanel>
