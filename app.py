@@ -530,6 +530,13 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                         if isinstance(raw_names, list)
                         else None
                     )
+                    # 「其他任务」的勾选：和日常一起提交，接在计划末尾执行。
+                    raw_extra = payload.get("extra")
+                    extra = (
+                        [str(name) for name in raw_extra if str(name).strip()]
+                        if isinstance(raw_extra, list)
+                        else None
+                    )
                     try:
                         started = service.start_daily(
                             training=str(payload.get("training", "修为")),
@@ -540,6 +547,7 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                             ),
                             resume=bool(payload.get("resume", False)),
                             names=names,
+                            extra=extra,
                         )
                     except ValueError as error:
                         self._error("BAD_SELECTION", str(error), HTTPStatus.BAD_REQUEST)

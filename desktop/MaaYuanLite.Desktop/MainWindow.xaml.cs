@@ -623,7 +623,9 @@ public partial class MainWindow : Window
     {
         if (_busy && _stateTasks.Count > 0)
         {
-            return _stateTasks;
+            // 合并执行时 _stateTasks 里会混进「其他任务」，它们该留在那个页签里。
+            var running = _stateTasks.Where(task => task.Kind != "extra").ToList();
+            return running.Count > 0 ? running : _stateTasks;
         }
         return _plan.Count > 0 ? _plan : _stateTasks;
     }
@@ -1274,12 +1276,16 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateStartButton()
     {
-        // 只数面板上真的显示出来的勾选：集合里残留的隐藏任务不该让数字变大。
-        var pool = _scope == "library" ? _library : VisualDaily();
-        var bucket = _scope == "library" ? _libraryChecked : _dailyChecked;
-        var count = pool.Count(task => bucket.Contains(task.Name));
+        // 两个 Tab 的勾选一起算：这个按钮执行的是"你勾的全部任务"，
+        // 不只是当前页签。数字只数面板上真的显示出来的项，隐藏任务没份。
+        var dailyCount = VisualDaily().Count(task => _dailyChecked.Contains(task.Name));
+        var libraryCount = _library.Count(task => _libraryChecked.Contains(task.Name));
+        var count = dailyCount + libraryCount;
         StartButton.Content = count > 0 ? $"开始任务（{count}）" : "开始任务";
         StartButton.IsEnabled = !_busy && count > 0;
+        StartButton.ToolTip = count > 0
+            ? $"今日日常 {dailyCount} 项 · 其他任务 {libraryCount} 项"
+            : "先勾选要执行的任务";
         DailySelectAll.Visibility = _scope == "library" ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -1335,31 +1341,34 @@ public partial class MainWindow : Window
     private async void OnStart(object sender, RoutedEventArgs e)
     {
         SetNotice("");
-        if (_scope == "library")
+        // 勾选跨两个页签累计：点了这个按钮，两边勾上的都会跑。
+        var daily = VisualDaily().Select(task => task.Name).Where(_dailyChecked.Contains).ToList();
+        var extra = _library.Select(task => task.Name).Where(_libraryChecked.Contains).ToList();
+        if (daily.Count == 0 && extra.Count == 0)
         {
-            var names = _library.Select(task => task.Name).Where(_libraryChecked.Contains).ToList();
-            if (names.Count == 0)
-            {
-                SetNotice("请先勾选要执行的任务", true);
-                return;
-            }
-            var ok = await _service.PostAsync("/api/run-task", new { names });
-            SetNotice(ok ? $"正在运行 {names.Count} 项：{string.Join(" → ", names)}" : (_service.LastMessage ?? "无法启动任务"), !ok);
+            SetNotice("请先勾选要执行的任务", true);
+            return;
+        }
+
+        // 只勾了「其他任务」：走独立批量，不覆盖今天的日常进度。
+        if (daily.Count == 0)
+        {
+            var ok = await _service.PostAsync("/api/run-task", new { names = extra });
+            SetNotice(
+                ok
+                    ? $"正在运行 {extra.Count} 项：{string.Join(" → ", extra)}"
+                    : (_service.LastMessage ?? "无法启动任务"),
+                !ok);
             await RefreshAsync();
             return;
         }
 
-        var picked = VisualDaily().Select(task => task.Name).Where(_dailyChecked.Contains).ToList();
-        if (picked.Count == 0)
-        {
-            SetNotice("请先勾选今天要做的日常", true);
-            return;
-        }
         var started = await _service.PostAsync("/api/start", new
         {
             training = _training,
             dungeon = _dungeon,
-            names = picked,
+            names = daily,
+            extra,
         });
         if (!started)
         {
@@ -1367,7 +1376,12 @@ public partial class MainWindow : Window
         }
         else
         {
-            SetNotice($"正在执行 {picked.Count} 项：{string.Join(" → ", picked)}");
+            var breakdown = extra.Count > 0
+                ? $"（日常 {daily.Count} 项 + 其他 {extra.Count} 项）"
+                : "";
+            SetNotice(
+                $"正在执行 {daily.Count + extra.Count} 项{breakdown}："
+                + string.Join(" → ", daily.Concat(extra)));
         }
         await RefreshAsync();
     }

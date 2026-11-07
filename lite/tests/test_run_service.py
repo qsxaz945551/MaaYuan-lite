@@ -435,6 +435,59 @@ class RunServiceTest(unittest.TestCase):
             [task["name"] for task in service.snapshot()["tasks"]], picked
         )
 
+    def test_extra_tasks_run_after_the_daily_selection(self):
+        """一个按钮：先按日常顺序跑勾选的日常，再跑「其他任务」的勾选。"""
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(
+                service,
+                training="修为",
+                include_dungeon=False,
+                names=["🔮 观星"],
+                extra=["🏯 据点日常"],
+            )
+
+        self.assertEqual(
+            FakeSession.instances[-1].calls,
+            [self.entries["🔮 观星"], self.entries["🏯 据点日常"]],
+        )
+        self.assertEqual(
+            [(task["name"], task["kind"]) for task in service.snapshot()["tasks"]],
+            [("🔮 观星", "daily"), ("🏯 据点日常", "extra")],
+        )
+        self.assertEqual(service.snapshot()["summary"]["failed"], 0)
+
+    def test_extra_only_selection_is_allowed(self):
+        """只勾了「其他任务」时不该被拒绝，也不该跑整条日常。"""
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(
+                service,
+                training="修为",
+                include_dungeon=False,
+                names=[],
+                extra=["🏯 据点日常"],
+            )
+
+        self.assertEqual(
+            FakeSession.instances[-1].calls, [self.entries["🏯 据点日常"]]
+        )
+
+    def test_extra_duplicating_a_daily_task_runs_once(self):
+        service = RunService(self.root, self.config)
+        with mock.patch("lite.run_service.LiteSession", FakeSession):
+            self.run_daily(
+                service,
+                training="修为",
+                include_dungeon=False,
+                names=["🔮 观星"],
+                extra=["🔮 观星"],
+            )
+
+        self.assertEqual(
+            FakeSession.instances[-1].calls, [self.entries["🔮 观星"]]
+        )
+
     def test_empty_selection_is_rejected(self):
         service = RunService(self.root, self.config)
         with self.assertRaises(ValueError):

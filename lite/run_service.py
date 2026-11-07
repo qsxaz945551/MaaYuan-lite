@@ -376,6 +376,7 @@ class RunService:
         include_dungeon: bool,
         resume: bool = False,
         names: list[str] | None = None,
+        extra: list[str] | None = None,
     ) -> bool:
         if self._busy():
             return False
@@ -383,7 +384,8 @@ class RunService:
             raise ValueError("Invalid training choice")
         if resume and not self.can_resume():
             return False
-        if names is not None and not names:
+        # names 是今日日常的勾选，extra 是「其他任务」的勾选；两边都空才拒绝。
+        if names is not None and not names and not extra:
             raise ValueError("没有选中任何任务")
         self._cancel.clear()
         with self._lock:
@@ -396,7 +398,7 @@ class RunService:
             self._reset_logs()
         self._thread = threading.Thread(
             target=self._run_daily,
-            args=(training, include_dungeon, resume, names),
+            args=(training, include_dungeon, resume, names, extra),
             name="maayuan-lite-runner",
             daemon=True,
         )
@@ -1197,6 +1199,7 @@ class RunService:
         include_dungeon: bool,
         resume: bool = False,
         names: list[str] | None = None,
+        extra: list[str] | None = None,
     ) -> None:
         interface = json.loads(
             (self.project_root / "build" / "generated" / "interface.json").read_text(
@@ -1244,8 +1247,42 @@ class RunService:
                     "tasks": [item for item in plan["tasks"] if item["name"] in chosen],
                     "count": sum(1 for item in plan["tasks"] if item["name"] in chosen),
                 }
-                if not plan["tasks"]:
-                    self._log("没有可执行的任务，本次运行结束。", "warn")
+
+            # 「其他任务」的勾选接在日常之后，共用同一个 session：日常链的
+            # 探测、档位、超时表照旧，结束动作只在最后执行一次。
+            if extra:
+                known = {item["name"] for item in plan["tasks"]}
+                appended: list[dict[str, Any]] = []
+                for name in extra:
+                    if not name or name in known:
+                        continue
+                    task_def = by_name.get(name)
+                    if task_def is None or task_def.get("entry") == "stop":
+                        self._log(f"其他任务里没有「{name}」，已忽略。", "warn")
+                        continue
+                    known.add(name)
+                    appended.append(
+                        {
+                            "name": name,
+                            "kind": "extra",
+                            "on_unavailable": "skip",
+                            "timeout_sec": None,
+                            "retries": 0,
+                        }
+                    )
+                if appended:
+                    self._log(
+                        f"日常之后接着执行其他任务：{' → '.join(item['name'] for item in appended)}"
+                    )
+                    plan = {
+                        **plan,
+                        "tasks": plan["tasks"] + appended,
+                        "count": len(plan["tasks"]) + len(appended),
+                    }
+
+            if not plan["tasks"]:
+                self._log("没有可执行的任务，本次运行结束。", "warn")
+
             with self._lock:
                 self._tasks = [
                     {

@@ -769,34 +769,46 @@ $("dungeonToggle").addEventListener("change", event => {
   fetchPlan();
 });
 
+function checkedIn(pool) {
+  return pool.map(task => task.name).filter(name => checkedTasks.has(name));
+}
+
 function syncStartButton() {
   const busy = Boolean(lastState && lastState.busy);
-  const count = currentPool().filter(task => checkedTasks.has(task.name)).length;
+  const daily = checkedIn(planTasks).length;
+  const extra = checkedIn(libraryTasks).length;
+  const count = daily + extra;
   $("startBtn").textContent = count ? `开始任务（${count}）` : "开始任务";
+  $("startBtn").title = count ? `今日日常 ${daily} 项 · 其他任务 ${extra} 项` : "先勾选要执行的任务";
   $("startBtn").disabled = busy || !count;
 }
 
 $("startBtn").addEventListener("click", async () => {
   setNotice("");
-  const library = listScope === "library";
-  const names = currentPool().map(task => task.name).filter(name => checkedTasks.has(name));
-  if (!names.length) {
+  // 勾选跨两个页签累计：点了这个按钮，两边勾上的都会跑。
+  const daily = checkedIn(planTasks);
+  const extra = checkedIn(libraryTasks);
+  if (!daily.length && !extra.length) {
     setNotice("请先勾选要执行的任务", true);
     return;
   }
-  // 日常勾选走 /api/start：保留地宫探测、历练档位、超时表这些链上语义。
-  const response = library
+  // 只勾了其他任务时走独立批量，不覆盖今天的日常进度。
+  const response = !daily.length
     ? await fetch("/api/run-task", {
         method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ names })
+        body: JSON.stringify({ names: extra })
       })
     : await fetch("/api/start", {
         method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ training, dungeon, names })
+        body: JSON.stringify({ training, dungeon, names: daily, extra })
       });
   const data = await response.json();
-  if (!response.ok) setNotice(data.error || "无法启动任务", true);
-  else setNotice(`正在运行 ${names.length} 项：${names.join(" → ")}`);
+  if (!response.ok) {
+    setNotice(data.error || "无法启动任务", true);
+  } else {
+    const breakdown = extra.length ? `（日常 ${daily.length} 项 + 其他 ${extra.length} 项）` : "";
+    setNotice(`正在运行 ${daily.length + extra.length} 项${breakdown}：${daily.concat(extra).join(" → ")}`);
+  }
   await refresh();
 });
 
