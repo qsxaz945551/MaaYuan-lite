@@ -110,6 +110,20 @@ class ResourceShortTest(unittest.TestCase):
         self.assertEqual(service._status, "completed")
 
 
+class CancelledStillResumableTest(unittest.TestCase):
+    """用户 2026-11-07：手动停止依然算未完成，要能续跑。"""
+
+    def test_cancelled_task_keeps_resume_available(self) -> None:
+        service = make_service()
+        service._tasks = [{"status": "succeeded"}, {"status": "cancelled"}]
+        self.assertTrue(service.can_resume())
+
+    def test_skipped_no_resource_does_not_offer_resume(self) -> None:
+        service = make_service()
+        service._tasks = [{"status": "succeeded"}, {"status": "skipped_no_resource"}]
+        self.assertFalse(service.can_resume())
+
+
 class DayWindowTest(unittest.TestCase):
     def test_before_five_still_belongs_to_yesterday(self) -> None:
         self.assertEqual(
