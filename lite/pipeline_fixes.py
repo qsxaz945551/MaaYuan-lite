@@ -39,6 +39,12 @@ ACTIVITY_TITLE_TEMPLATE = "activity_title.png"
 ACTIVITY_TITLE_ROI = [250, 230, 220, 140]
 ACTIVITY_TITLE_THRESHOLD = 0.8
 
+# 补丁自己新增的节点（上游树里没有，也不该有）。门禁据此区分
+# 「覆盖上游节点」和「新增节点」——后者要求它存在就等于永远拒绝更新。
+NEW_NODES: dict[str, set[str]] = {
+    "start_日常鸢报启动": {"等待小道消息收集完成", "end_鸢报四连完成"},
+}
+
 FIXES: dict[str, dict[str, Any]] = {
     # 日常收尾：领取密探特训奖励（2026-11-06 实跑失败后定位）
     "日常收尾启动": {

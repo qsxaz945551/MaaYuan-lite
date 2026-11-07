@@ -845,7 +845,8 @@ public partial class MainWindow : Window
 
     private static Border Badge(string text, Brush foreground, Brush border, Brush background) => new()
     {
-        CornerRadius = new CornerRadius(99),
+        // 与开关同一种"圆角矩形"语言；99 会变成胶囊，和深色面板不搭。
+        CornerRadius = new CornerRadius(5),
         BorderThickness = new Thickness(1),
         BorderBrush = border,
         Background = background,

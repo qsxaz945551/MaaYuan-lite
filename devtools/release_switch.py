@@ -53,12 +53,26 @@ def read_active(dist: Path) -> str | None:
 
 
 def write_active(dist: Path, name: str) -> None:
-    """Atomic write: a half-written pointer would leave no launchable version."""
+    """Atomic write: a half-written pointer would leave no launchable version.
+
+    ``os.replace`` can fail with WinError 5 when something blocks rename/delete
+    but still allows writing (antivirus, or a sandboxed shell: on this machine
+    only in-place writes went through). Fall back to rewriting the pointer in
+    place — it is one short line, so the atomic swap is a nicety rather than a
+    correctness requirement.
+    """
     dist.mkdir(parents=True, exist_ok=True)
     pointer = dist / POINTER
     temp = pointer.with_suffix(".tmp")
     temp.write_text(name, encoding="utf-8")
-    os.replace(temp, pointer)
+    try:
+        os.replace(temp, pointer)
+    except PermissionError:
+        pointer.write_text(name, encoding="utf-8")
+        try:
+            temp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def resolve(dist: Path, wanted: str) -> Path:

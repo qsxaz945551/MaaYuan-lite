@@ -188,7 +188,7 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="RadioButton">
                             <Border x:Name="Shell" Background="Transparent" BorderBrush="Transparent"
-                                    BorderThickness="1" CornerRadius="8" Padding="8,6">
+                                    BorderThickness="1" CornerRadius="5" Padding="8,6">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>

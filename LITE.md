@@ -123,6 +123,9 @@ python lite/apply_scope.py
 - 框架版本由发布包钉住（`FRAMEWORK_PINNED = 5.6.0`）：pipeline 与 maafw 的接口是按这个版本验证的。
   拿 PyPI 最新版（当时 5.15.0）当"可更新"会永远显示红点，且没有升级入口——已改成只在
   **本地版本 ≠ 钉住版本**时提示（例如手工 pip 装过别的版本）。
+- 兼容性门禁区分「覆盖上游节点」与「补丁新增节点」：`pipeline_fixes.NEW_NODES` 声明后者
+  （鸢报的 `等待小道消息收集完成` / `end_鸢报四连完成`），否则门禁会要求它们存在于上游，
+  更新永远被拒。门禁失败时日志会带上前三条具体问题。
 - 资源切换是整目录 rename，会带走 Lite 自己放进 `assets/resource/base` 的文件；
   `update_applier.RESOURCE_EXTRAS` 列出这些文件（目前是 `image/activity_title.png`），
   切换后从备份补回，清单与 `devtools/upgrade.py` 的 KEEP 一致。

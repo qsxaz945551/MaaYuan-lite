@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from .daily_plan import load_profile
-from .pipeline_fixes import FIXES
+from .pipeline_fixes import FIXES, NEW_NODES
 from .round_progress import ROUND_MARKERS
 from .task_options_service import load_selection
 
@@ -74,7 +74,11 @@ def validate(project_root: Path, resource_root: Path | None = None) -> list[str]
             problems.append(f"日常链任务不存在：{name}")
 
     for entry, patch in FIXES.items():
+        added = NEW_NODES.get(entry, set())
         for node in patch:
+            if node in added:
+                # 补丁新增的节点，上游当然没有。
+                continue
             if node not in nodes:
                 problems.append(f"pipeline_fixes[{entry}] 依赖的节点不存在：{node}")
 

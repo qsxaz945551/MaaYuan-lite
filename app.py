@@ -105,7 +105,9 @@ def _apply_staged_resources(config: dict) -> tuple[str, str] | None:
 
     result = apply_staged(ROOT, str(config.get("interface_source", "")))
     if not result.get("ok"):
-        message = f"资源切换失败，继续使用旧版本：{result.get('error')}"
+        problems = result.get("problems") or []
+        detail = f"（{'；'.join(str(item) for item in problems[:3])}）" if problems else ""
+        message = f"资源切换失败，继续使用旧版本：{result.get('error')}{detail}"
         print(message, file=sys.stderr)
         return message, "warn"
 

@@ -52,7 +52,7 @@
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Border x:Name="UpdateBadge" Background="#2A2418" BorderBrush="#4C3E28" BorderThickness="1"
-                        CornerRadius="99" Padding="11,4" Margin="0,0,14,0" Visibility="Collapsed"
+                        CornerRadius="5" Padding="11,4" Margin="0,0,14,0" Visibility="Collapsed"
                         Cursor="Hand" MouseLeftButtonUp="OnUpdateClick" ToolTip="点击查看可用的更新">
                     <TextBlock x:Name="UpdateText" Foreground="{StaticResource AmberBrush}" FontSize="12"/>
                 </Border>
