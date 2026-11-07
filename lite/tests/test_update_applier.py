@@ -62,6 +62,19 @@ class ApplyStagedTest(unittest.TestCase):
         sample = next((self.root / "assets" / "resource" / "base" / "pipeline").glob("*.json"))
         return json.loads(sample.read_text(encoding="utf-8"))[sample.stem]["marker"]
 
+    def test_lite_added_template_survives_the_swap(self) -> None:
+        """整目录替换会带走 activity_title.png，切换后必须补回来。"""
+        extra = self.root / "assets" / "resource" / "base" / "image" / "activity_title.png"
+        extra.parent.mkdir(parents=True)
+        extra.write_bytes(b"template-bytes")
+
+        result = apply_staged(self.root, interface_source="")
+
+        self.assertTrue(result["ok"], result)
+        self.assertIn("image/activity_title.png", result.get("restoredExtras", []))
+        live = self.root / "assets" / "resource" / "base" / "image" / "activity_title.png"
+        self.assertEqual(live.read_bytes(), b"template-bytes")
+
     def test_staged_detected(self) -> None:
         self.assertTrue(has_staged(self.root))
 

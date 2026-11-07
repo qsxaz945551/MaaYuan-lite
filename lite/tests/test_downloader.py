@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 from pathlib import Path
 
@@ -146,3 +147,79 @@ class ModelReuseTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _InlineThread:
+    """Run the background worker on the calling thread so tests are deterministic."""
+
+    def __init__(self, target=None, name=None, daemon=None):  # noqa: ANN001
+        self._target = target
+
+    def start(self) -> None:
+        if self._target is not None:
+            self._target()
+
+
+class AutoCheckLogTest(unittest.TestCase):
+    """auto_check now reports what it decided; silence was the original complaint."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.lines: list[tuple[str, str]] = []
+        downloader._thread = None
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+        downloader._thread = None
+
+    def _run(self, resource: dict, *, staged: bool = False) -> None:
+        import types
+
+        if staged:
+            (self.root / downloader.STAGE).mkdir(parents=True)
+        fake_updater = types.SimpleNamespace(
+            check_updates=lambda _root: {"resource": resource}
+        )
+        with (
+            unittest.mock.patch.dict("sys.modules", {"lite.updater": fake_updater}),
+            unittest.mock.patch.object(
+                downloader, "threading", types.SimpleNamespace(Thread=_InlineThread)
+            ),
+            unittest.mock.patch.object(downloader, "start", return_value={}) as start,
+        ):
+            downloader.auto_check(
+                self.root, delay=0, log=lambda msg, level="info": self.lines.append((msg, level))
+            )
+        self.start = start
+
+    def test_up_to_date_is_reported(self) -> None:
+        self._run({"available": False, "local": "abc123", "error": None})
+        self.assertTrue(any("资源已是最新（abc123）" in msg for msg, _ in self.lines))
+        self.start.assert_not_called()
+
+    def test_available_update_starts_download_and_says_so(self) -> None:
+        self._run(
+            {
+                "available": True,
+                "local": "abc123",
+                "remote": "def456",
+                "remoteDate": "2026-11-06",
+                "error": None,
+            }
+        )
+        messages = " ".join(msg for msg, _ in self.lines)
+        self.assertIn("资源有更新", messages)
+        self.assertIn("def456", messages)
+        self.start.assert_called_once()
+
+    def test_staged_tree_is_left_alone(self) -> None:
+        self._run({"available": True, "local": "abc123", "remote": "def456"}, staged=True)
+        self.assertTrue(any("待生效" in msg for msg, _ in self.lines))
+        self.start.assert_not_called()
+
+    def test_offline_is_a_warning_not_a_crash(self) -> None:
+        self._run({"available": False, "local": None, "error": "URLError: offline"})
+        self.assertTrue(
+            any("检查资源更新失败" in msg and level == "warn" for msg, level in self.lines)
+        )

@@ -98,6 +98,11 @@ public partial class MainWindow : Window
     private bool _loadingSettings;
     private bool _buildingPanel;
     private bool _downloadRunning;
+    // 徽章里到底有什么：点击时按这些标志决定"能做什么"，
+    // 不再靠字符串判断，也不会因为只提示框架就去问要不要下载资源。
+    private bool _updateStaged;
+    private bool _updateHasResource;
+    private bool _updateHasFramework;
     private bool _uiReady;
     private int _cursor;
     private string _runId = "";
@@ -1524,26 +1529,42 @@ public partial class MainWindow : Window
             }
 
             var staged = Bool(doc.RootElement, "staged");
+            var resourceAvailable =
+                doc.RootElement.TryGetProperty("resource", out var resource)
+                && Bool(resource, "available");
+            var frameworkDrifted =
+                doc.RootElement.TryGetProperty("framework", out var framework)
+                && Bool(framework, "available");
+
             if (staged)
             {
                 badges.Add("资源待生效");
                 details.Add("新的资源已经下载并校验完成，关闭 Lite 再打开即生效。");
             }
 
-            if (doc.RootElement.TryGetProperty("resource", out var resource) && Bool(resource, "available"))
+            if (resourceAvailable)
             {
                 if (!staged)
                 {
                     badges.Add("资源");
                 }
-                details.Add($"资源：上游 {Str(resource, "remote")}（{Str(resource, "remoteDate")}）");
+                details.Add($"资源：本地 {Str(resource, "local")} → 上游 {Str(resource, "remote")}（{Str(resource, "remoteDate")}）");
             }
 
-            if (doc.RootElement.TryGetProperty("framework", out var framework) && Bool(framework, "available"))
+            if (frameworkDrifted)
             {
-                badges.Add($"框架 {Str(framework, "latest")}");
-                details.Add($"框架：本地 {Str(framework, "installed")}，最新 {Str(framework, "latest")}（上游钉住 5.6.0）");
+                // available 现在表示"本地版本与发布包钉住的不一致"，不是"PyPI 有新版"。
+                badges.Add("框架版本不一致");
+                var latest = Str(framework, "latest");
+                details.Add(
+                    $"框架：本地 {Str(framework, "installed")}，发布包钉住 {Str(framework, "pinned")}"
+                    + (string.IsNullOrEmpty(latest) ? "" : $"，PyPI 最新 {latest}")
+                    + "\n框架版本随发布包固定，不提供一键升级。");
             }
+
+            _updateStaged = staged;
+            _updateHasResource = resourceAvailable;
+            _updateHasFramework = frameworkDrifted;
 
             if (badges.Count == 0)
             {
@@ -1568,7 +1589,7 @@ public partial class MainWindow : Window
     private async void OnUpdateClick(object sender, MouseButtonEventArgs e)
     {
         var details = UpdateBadge.Tag as string ?? "";
-        if (UpdateText.Text.StartsWith("正在下载资源"))
+        if (_downloadRunning)
         {
             MessageBox.Show(
                 details + "\n\n下载完成后会自动校验，下次启动 Lite 生效。",
@@ -1578,7 +1599,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (UpdateText.Text.Contains("待生效"))
+        if (_updateStaged)
         {
             var restart = MessageBox.Show(
                 details + "\n\n现在就重启 Lite 让它生效吗？",
@@ -1589,6 +1610,17 @@ public partial class MainWindow : Window
             {
                 RestartApplication();
             }
+            return;
+        }
+
+        // 只有框架提示时，这里过去也会问"要不要下载资源"——资源其实已经是最新的。
+        if (!_updateHasResource)
+        {
+            MessageBox.Show(
+                details,
+                "MaaYuan Lite",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
             return;
         }
 

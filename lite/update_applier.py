@@ -26,6 +26,11 @@ STAGE = "assets.next"
 STAGE_PART = "assets.next.part"
 BACKUP = "assets.prev"
 
+# 上游资源树里没有、由 Lite 自己放进 assets/resource/base 的文件。
+# 切换是整目录 rename，这些文件会被静默带走——活动页判页用的模板图就踩过这个坑。
+# 与 devtools/upgrade.py 的 KEEP 保持同一份清单。
+RESOURCE_EXTRAS = ("image/activity_title.png",)
+
 
 def stage_root(project_root: Path) -> Path:
     return project_root / STAGE
@@ -101,6 +106,10 @@ def apply_staged(project_root: Path, interface_source: str = "") -> dict[str, An
             if live_manifest.is_file():
                 shutil.copy2(live_manifest, backup / MANIFEST_NAME)
             shutil.copy2(manifest, live_manifest)
+
+        carried = _carry_resource_extras(
+            backup / "resource" / "base", assets / "resource" / "base"
+        )
     except OSError as error:
         _undo(moved)
         _restore_extras(project_root, backup)
@@ -112,7 +121,32 @@ def apply_staged(project_root: Path, interface_source: str = "") -> dict[str, An
         "backup": str(backup),
         "interfaceSwapped": swap_interface,
         "agentSwapped": swap_agent,
+        "restoredExtras": carried,
     }
+
+
+def _carry_resource_extras(previous: Path, current: Path) -> list[str]:
+    """Bring Lite's own additions over to the freshly swapped tree.
+
+    The staged tree comes from upstream and cannot contain them, so without this
+    an auto-update silently removes e.g. the activity-page template and the
+    pipeline fix that references it starts missing again.
+    """
+    carried: list[str] = []
+    for relative in RESOURCE_EXTRAS:
+        source = previous / relative
+        if not source.is_file():
+            continue
+        target = current / relative
+        if target.is_file():
+            continue
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            carried.append(relative)
+        except OSError:
+            pass
+    return carried
 
 
 def rollback(project_root: Path) -> bool:

@@ -125,15 +125,39 @@ def start(
     return {"started": True, "state": state()}
 
 
-def auto_check(project_root: Path, enabled: bool = True, delay: float = 6.0) -> None:
+def auto_check(
+    project_root: Path,
+    enabled: bool = True,
+    delay: float = 6.0,
+    log: Callable[[str, str], None] | None = None,
+) -> None:
     """Check upstream in the background and download without asking.
 
     Runs after the console is already serving requests, so a slow or offline
     network never delays startup. A staged tree that is already waiting is left
     alone: it will be applied on the next start.
+
+    Everything it decides is reported through ``log`` (the service's run log):
+    a silent background download is indistinguishable from "nothing happened",
+    which is exactly the confusion that made a user ask why resources had
+    already been fetched.
     """
     if not enabled:
         return
+
+    def say(message: str, level: str = "info") -> None:
+        if log is None:
+            return
+        try:
+            log(message, level)
+        except Exception:  # noqa: BLE001 - logging must never kill the check
+            pass
+
+    def done(result: dict[str, Any]) -> None:
+        if result.get("state") == "done":
+            say("资源下载完成并校验通过，重启 Lite 后生效。")
+        else:
+            say(f"资源下载失败：{result.get('error') or result.get('message')}", "warn")
 
     def loop() -> None:
         time.sleep(delay)
@@ -141,13 +165,26 @@ def auto_check(project_root: Path, enabled: bool = True, delay: float = 6.0) -> 
             from .updater import check_updates
 
             data = check_updates(project_root)
-            if not data.get("resource", {}).get("available"):
+            resource = data.get("resource", {})
+            if (project_root / STAGE).is_dir():
+                say("资源已下载待生效，重启 Lite 后切换。")
                 return
-            if (project_root / STAGE).is_dir() or running():
+            if running():
+                say("资源正在后台下载，完成后会提示重启。")
                 return
-            start(project_root, sha="")
-        except Exception:  # noqa: BLE001 - background convenience only
-            pass
+            if not resource.get("available"):
+                if resource.get("error"):
+                    say(f"检查资源更新失败：{resource['error']}", "warn")
+                else:
+                    say(f"资源已是最新（{resource.get('local') or '未知版本'}）。")
+                return
+            say(
+                f"资源有更新：本地 {resource.get('local')} → 上游 {resource.get('remote')}"
+                f"（{resource.get('remoteDate')}），开始后台下载。"
+            )
+            start(project_root, sha="", on_done=done)
+        except Exception as error:  # noqa: BLE001 - background convenience only
+            say(f"检查资源更新失败：{error}", "warn")
 
     threading.Thread(target=loop, name="update-check", daemon=True).start()
 

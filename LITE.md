@@ -109,6 +109,26 @@ python lite/apply_scope.py
 
 界面自检不用手点：`MaaYuanLite.Desktop.exe --screenshot out.png`（加 `--scope library` 看其他任务页）会把整窗渲染成 PNG 后退出。
 
+### 更新策略（2026-11-07）
+
+资源与框架是两条完全独立的路径，不要混为一谈：
+
+| | 资源（pipeline / 图片 / OCR 模型 / agent） | 框架（maafw） |
+|---|---|---|
+| 检查 | 每次启动 6 秒后自动检查（GitHub 最新提交） | 随 `/api/updates` 一起查 |
+| 下载 | **自动**后台下载并校验，不需要点按钮 | **不下载、不安装** |
+| 生效 | 下次启动时原子切换（`assets.next` → `assets`） | 随发布包固定 |
+| 日志 | 检查结果、下载完成、切换结果都写进界面日志 | 只在不一致时提示 |
+
+- 框架版本由发布包钉住（`FRAMEWORK_PINNED = 5.6.0`）：pipeline 与 maafw 的接口是按这个版本验证的。
+  拿 PyPI 最新版（当时 5.15.0）当"可更新"会永远显示红点，且没有升级入口——已改成只在
+  **本地版本 ≠ 钉住版本**时提示（例如手工 pip 装过别的版本）。
+- 资源切换是整目录 rename，会带走 Lite 自己放进 `assets/resource/base` 的文件；
+  `update_applier.RESOURCE_EXTRAS` 列出这些文件（目前是 `image/activity_title.png`），
+  切换后从备份补回，清单与 `devtools/upgrade.py` 的 KEEP 一致。
+- 更新徽章的点击语义按状态区分：下载中 → 只提示进度；已下载待生效 → 询问是否重启；
+  只有框架提示 → 只展示详情（过去会误问"要不要下载资源"，而资源其实已是最新）。
+
 ### 环境前提（重要）
 
 | 项 | 要求 | 说明 |

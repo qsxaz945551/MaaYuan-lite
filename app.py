@@ -86,24 +86,28 @@ def _bundle_owns_resources(config: dict) -> bool:
         return False
 
 
-def _apply_staged_resources(config: dict) -> None:
-    """Switch to a downloaded resource tree before anything opens the pipeline."""
+def _apply_staged_resources(config: dict) -> tuple[str, str] | None:
+    """Switch to a downloaded resource tree before anything opens the pipeline.
+
+    Returns ``(message, level)`` for the run log: this happens before the
+    service exists, so the shell only sees it after the fact. Without that line
+    the resource tree silently changes under the user between two launches.
+    """
     from lite.update_applier import apply_staged, cleanup_partial, has_staged
 
     cleanup_partial(ROOT)
     if not has_staged(ROOT):
-        return
+        return None
     if not _bundle_owns_resources(config):
-        print(
-            "检测到待生效资源，但当前配置指向开发目录，跳过自动切换（用 devtools/sync_repo.py --update）",
-            file=sys.stderr,
-        )
-        return
+        message = "检测到待生效资源，但当前配置指向开发目录，已跳过自动切换（用 devtools/sync_repo.py --update）。"
+        print(message, file=sys.stderr)
+        return message, "warn"
 
     result = apply_staged(ROOT, str(config.get("interface_source", "")))
     if not result.get("ok"):
-        print(f"资源切换失败，继续使用旧版本：{result.get('error')}", file=sys.stderr)
-        return
+        message = f"资源切换失败，继续使用旧版本：{result.get('error')}"
+        print(message, file=sys.stderr)
+        return message, "warn"
 
     ok, detail = _rebuild_interface()
     if not ok:
@@ -113,18 +117,21 @@ def _apply_staged_resources(config: dict) -> None:
 
         restored = rollback(ROOT)
         _rebuild_interface()
-        print(
+        message = (
             f"新资源无法生成 interface（{detail}），"
-            f"{'已回滚到旧版本' if restored else '回滚失败，请手动恢复 assets.prev'}",
-            file=sys.stderr,
+            f"{'已回滚到旧版本' if restored else '回滚失败，请手动恢复 assets.prev'}"
         )
-        return
+        print(message, file=sys.stderr)
+        return message, "error"
 
-    print(
+    extras = result.get("restoredExtras") or []
+    message = (
         f"已切换到新资源（agent {'已' if result.get('agentSwapped') else '未'}替换），"
-        f"interface 重建成功",
-        flush=True,
+        f"interface 重建成功"
+        f"{f'，补回 {len(extras)} 个本地文件' if extras else ''}。"
     )
+    print(message, flush=True)
+    return message, "info"
 
 
 def _ensure_interface(config: dict) -> None:
@@ -682,7 +689,7 @@ def main() -> int:
 
         return run_selftest(ROOT, config)
 
-    _apply_staged_resources(config)
+    staged_note = _apply_staged_resources(config)
     _ensure_interface(config)
 
     if not (ROOT / "build" / "generated" / "interface.json").is_file():
@@ -718,6 +725,9 @@ def main() -> int:
         open_ui(f"http://{host}:{port}")
         return 0
     service = RunService(ROOT, config)
+    if staged_note is not None:
+        # 资源在启动前就换掉了，把这行补进日志，界面第一次轮询就能看到。
+        service.note(*staged_note)
     server_ref: list[LiteHTTPServer] = []
     handler = make_handler(service, server_ref)
     try:
@@ -754,7 +764,11 @@ def main() -> int:
     # network must never delay the window.
     from lite.downloader import auto_check
 
-    auto_check(ROOT, enabled=bool(settings.get("auto_update_resources", True)))
+    auto_check(
+        ROOT,
+        enabled=bool(settings.get("auto_update_resources", True)),
+        log=service.note,
+    )
 
     if not args.no_browser:
         threading.Timer(0.6, lambda: open_ui(url)).start()

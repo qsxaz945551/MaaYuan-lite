@@ -21,6 +21,11 @@ API = f"https://api.github.com/repos/{REPO}/commits?sha={BRANCH}&per_page=1"
 PYPI = "https://pypi.org/pypi/maafw/json"
 CACHE_HOURS = 6
 
+# 框架版本由发布包钉住：资源 pipeline 与 maafw 的接口是按这个版本验证的。
+# 不能拿 PyPI 最新版当"可更新"，否则永远显示有更新（5.6.0 vs 5.15.0）——那是噪音，
+# 点进去也没有升级入口。
+FRAMEWORK_PINNED = "5.6.0"
+
 
 def _fetch_remote_commit(timeout: float = 3.0) -> dict[str, str]:
     request = urllib.request.Request(
@@ -126,9 +131,13 @@ def check_updates(project_root: Path, force: bool = False, timeout: float = 3.0)
         "framework": {
             "installed": framework_installed,
             "latest": framework_latest or None,
-            "pinned": "5.6.0",
+            "pinned": FRAMEWORK_PINNED,
+            # 只有本地被换成非钉住版本时才提示（例如手工 pip 升级过）。
+            # 与 PyPI 最新版比较会一直为真，见 FRAMEWORK_PINNED 的说明。
             "available": bool(
-                framework_latest and framework_latest != framework_installed
+                framework_installed
+                and framework_installed != "?"
+                and framework_installed != FRAMEWORK_PINNED
             ),
             "error": framework_error,
         },
