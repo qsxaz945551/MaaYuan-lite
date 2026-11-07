@@ -121,7 +121,7 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button x:Name="StartButton" Content="开始日常" Style="{StaticResource PrimaryButton}"
+                        <Button x:Name="StartButton" Content="开始任务" Style="{StaticResource PrimaryButton}"
                                 Padding="18,9" Margin="0,0,8,0" Click="OnStart"/>
                         <Button x:Name="ResumeButton" Content="继续未完成" Padding="14,9"
                                 Margin="0,0,8,0" IsEnabled="False" Click="OnResume"/>
@@ -130,8 +130,6 @@
                     </StackPanel>
                 </Grid>
 
-                <TextBlock x:Name="NoticeText" Margin="18,0,18,11" FontSize="12"
-                           Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </Border>
 
@@ -226,20 +224,12 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- 即时反馈：原来在控制条下面，现与运行日志同处一栏。
+                         成功/失败计数汇总已按用户要求去掉。 -->
                     <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource LineBrush}"
                             BorderThickness="0,1,0,0" Padding="18,9">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="成功" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
-                            <TextBlock x:Name="OkCount" Text="0" FontSize="12" Margin="6,0,18,0"/>
-                            <TextBlock Text="失败" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
-                            <TextBlock x:Name="FailCount" Text="0" FontSize="12" Margin="6,0,18,0"/>
-                            <TextBlock x:Name="SkipLabel" Text="未领取" Visibility="Collapsed"
-                                       Foreground="{StaticResource MutedBrush}" FontSize="12"/>
-                            <TextBlock x:Name="SkipCount" Text="0" FontSize="12" Margin="6,0,18,0"
-                                       Visibility="Collapsed" Foreground="{StaticResource AmberBrush}"/>
-                            <TextBlock Text="状态" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
-                            <TextBlock x:Name="SummaryState" Text="待机" FontSize="12" Margin="6,0,0,0"/>
-                        </StackPanel>
+                        <TextBlock x:Name="NoticeText" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MutedBrush}"/>
                     </Border>
 
                     <Grid>

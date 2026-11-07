@@ -195,6 +195,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
 .summary b { color: var(--text); font-weight: 500; }
 .link { color: var(--blue); text-decoration: none; }
 .notice { min-height: 18px; margin: 4px 18px 8px; color: var(--muted); font-size: 12px; }
+.summary.notice { margin: 0; }
 .notice.error { color: var(--red); }
 @media (max-width: 1180px) { .workspace { grid-template-columns: minmax(200px, 260px) minmax(240px, 320px) minmax(260px, 1fr); } }
 @media (max-width: 900px) { .workspace { grid-template-columns: minmax(170px, 210px) minmax(200px, 250px) minmax(220px, 1fr); } }
@@ -265,12 +266,11 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
         </select>
       </div>
       <div class="control-block actions-block">
-        <button class="btn primary" id="startBtn">开始日常</button>
+        <button class="btn primary" id="startBtn">开始任务</button>
         <button class="btn" id="resumeBtn" disabled>继续未完成</button>
         <button class="btn danger" id="stopBtn" disabled>停止</button>
       </div>
     </div>
-    <div class="notice" id="notice"></div>
   </section>
 
   <div class="workspace">
@@ -310,12 +310,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 550; letter-spacing: .2px; }
         </span>
       </div>
       <div class="log-box" id="logBox"><div class="log-empty">尚未开始运行。</div></div>
-      <div class="summary">
-        <span>成功 <b id="okCount">0</b></span>
-        <span>失败 <b id="failCount">0</b></span>
-        <span id="skipWrap" style="display:none">未领取 <b id="skipCount">0</b></span>
-        <span>状态 <b id="summaryState">待机</b></span>
-      </div>
+      <div class="summary notice" id="notice"></div>
     </section>
   </div>
 </div>
@@ -650,7 +645,14 @@ function renderOptionPanel() {
 function setNotice(message, error = false) {
   const el = $("notice");
   el.textContent = message || "";
-  el.className = "notice" + (error ? " error" : "");
+  el.className = "summary notice" + (error ? " error" : "");
+  // 即时提示会被下一次点击覆盖；失败必须留痕。
+  if (error && message) {
+    fetch("/api/note", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ message, level: "warn" })
+    }).catch(() => {});
+  }
 }
 
 function clearLogs() {
@@ -706,7 +708,6 @@ async function refresh() {
           ? `运行中：${single.name}（${current}/${total}）`
           : `单独运行：${single.name}`)
       : (statusMap[status] || status);
-    $("summaryState").textContent = singleActive ? "单独运行" : (statusMap[status] || status);
     // 当前节点：上游在 pipeline 里用 focus 写好了一句中文进度，有就用它；
     // 没有 focus 的节点退回节点名，用等宽字体弱化，方便对照日志。
     const step = state.step;
@@ -720,11 +721,6 @@ async function refresh() {
     } else {
       strip.classList.add("off");
     }
-    $("okCount").textContent = state.summary && state.summary.succeeded != null ? state.summary.succeeded : "0";
-    $("failCount").textContent = state.summary && state.summary.failed != null ? state.summary.failed : "0";
-    const skipped = state.summary && state.summary.skipped ? state.summary.skipped : 0;
-    $("skipCount").textContent = String(skipped);
-    $("skipWrap").style.display = skipped ? "" : "none";
     $("connectionMeta").textContent = state.config ? `${state.config.adbSerial} · 简中` : "";
     $("resumeBtn").disabled = state.busy || !state.canResume;
     $("checkBtn").disabled = state.busy;
@@ -844,7 +840,7 @@ $("checkBtn").addEventListener("click", async () => {
 
 $("stopBtn").addEventListener("click", async () => {
   await fetch("/api/stop", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"});
-  setNotice("已发送停止请求。");
+  setNotice("收到停止请求，正在结束当前任务……");
   await refresh();
 });
 

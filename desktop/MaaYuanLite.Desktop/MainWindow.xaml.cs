@@ -493,24 +493,6 @@ public partial class MainWindow : Window
             }
         }
 
-        var ok = 0;
-        var fail = 0;
-        if (root.TryGetProperty("summary", out var summary))
-        {
-            ok = Int(summary, "succeeded");
-            fail = Int(summary, "failed");
-        }
-        OkCount.Text = ok.ToString();
-        FailCount.Text = fail.ToString();
-        var skipped = 0;
-        if (root.TryGetProperty("summary", out var summaryBox))
-        {
-            skipped = Int(summaryBox, "skipped");
-        }
-        SkipLabel.Visibility = skipped > 0 ? Visibility.Visible : Visibility.Collapsed;
-        SkipCount.Visibility = SkipLabel.Visibility;
-        SkipCount.Text = skipped.ToString();
-
         var singleActive = _singleStatus is "pending" or "running";
         var label = StatusLabel(_runStatus);
         StatusText.Text = singleActive
@@ -518,7 +500,6 @@ public partial class MainWindow : Window
                 ? $"运行中：{_singleName}（{_singleIndex + 1}/{_singleTotal}）"
                 : $"单独运行：{_singleName}")
             : (string.IsNullOrEmpty(current) ? label : $"{label} · {current}");
-        SummaryState.Text = singleActive ? "单独运行" : label;
         StatusDot.Fill = StatusBrush(_runStatus);
         UpdateStep(root);
 
@@ -1342,6 +1323,12 @@ public partial class MainWindow : Window
     {
         NoticeText.Text = message;
         NoticeText.Foreground = error ? RedBrush : MutedBrush;
+        if (error && !string.IsNullOrEmpty(message))
+        {
+            // 即时提示会被下一次操作覆盖；失败必须留痕，否则事后无从查起。
+            // 服务端 /api/note 会加「界面：」前缀，与运行事件区分开。
+            _ = _service.PostAsync("/api/note", new { message, level = "warn" });
+        }
     }
 
     private async void OnStart(object sender, RoutedEventArgs e)
@@ -1406,7 +1393,7 @@ public partial class MainWindow : Window
     private async void OnStop(object sender, RoutedEventArgs e)
     {
         await _service.PostAsync("/api/stop");
-        SetNotice("已发送停止请求。");
+        SetNotice("收到停止请求，正在结束当前任务……");
         await RefreshAsync();
     }
 

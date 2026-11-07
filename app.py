@@ -492,6 +492,17 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
             parsed = urlparse(self.path)
             try:
                 payload = self._read_json()
+                if parsed.path == "/api/note":
+                    # 即时提示行会被下一次操作覆盖；失败提示要留一条运行日志，
+                    # 前缀「界面：」用来和运行事件区分开。
+                    message = str(payload.get("message") or "").strip()
+                    level = str(payload.get("level") or "warn")
+                    if level not in {"info", "warn", "error"}:
+                        level = "warn"
+                    if message:
+                        service.note(f"界面：{message}", level)
+                    self._json({"ok": bool(message)})
+                    return
                 if parsed.path == "/api/task-options":
                     with OPTION_LOCK:
                         interface = load_interface()
