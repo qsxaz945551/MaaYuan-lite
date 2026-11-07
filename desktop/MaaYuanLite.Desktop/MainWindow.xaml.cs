@@ -250,9 +250,15 @@ public partial class MainWindow : Window
             _plan.Add(new TaskEntry(Str(task, "name"), Str(task, "kind")));
         }
 
+        var currentNames = _plan.Select(task => task.Name).ToHashSet();
+
+        // 不在计划里的任务（地宫关掉、每日进膳不在开放时段）一律清掉勾选：
+        // 界面上看不见的项不该在内存里留着"已勾选"，否则按钮上的数字会比实际
+        // 执行的多，重新开放时也像是记住了上一次的选择。
+        _dailyChecked.RemoveWhere(name => !currentNames.Contains(name));
+
         // 新出现的任务默认勾上（第一次进界面、地宫/每日进膳刚开放）；用户主动
         // 取消过的不会被重新勾回来，因为只处理"这次新出现的"。
-        var currentNames = _plan.Select(task => task.Name).ToHashSet();
         foreach (var name in currentNames.Except(_lastPlanNames))
         {
             _dailyChecked.Add(name);
@@ -1228,7 +1234,10 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateStartButton()
     {
-        var count = _scope == "library" ? _libraryChecked.Count : _dailyChecked.Count;
+        // 只数面板上真的显示出来的勾选：集合里残留的隐藏任务不该让数字变大。
+        var pool = _scope == "library" ? _library : VisualDaily();
+        var bucket = _scope == "library" ? _libraryChecked : _dailyChecked;
+        var count = pool.Count(task => bucket.Contains(task.Name));
         StartButton.Content = count > 0 ? $"开始任务（{count}）" : "开始任务";
         StartButton.IsEnabled = !_busy && count > 0;
         DailySelectAll.Visibility = _scope == "library" ? Visibility.Collapsed : Visibility.Visible;
