@@ -1,2 +1,0 @@
-# MaaFwApp Agent dependencies. Build with android/build_runtime.py; see android/README.md.
--r android/requirements.txt

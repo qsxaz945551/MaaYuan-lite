@@ -8,6 +8,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from .constants import DEFAULT_TRAINING
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = ROOT / "lite" / "runtime-config.json"
@@ -22,7 +24,7 @@ SHUTDOWN_ACTIONS = ("none", "close_maa", "close_both")
 DEFAULTS: dict[str, Any] = {
     "startup_action": "none",
     "shutdown_action": "none",
-    "last_training": "修为",
+    "last_training": DEFAULT_TRAINING,
     "last_dungeon": False,
     "auto_update_resources": True,
 }

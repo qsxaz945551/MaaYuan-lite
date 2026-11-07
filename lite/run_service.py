@@ -8,6 +8,8 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timedelta
+
+from .constants import DEFAULT_TRAINING, TRAINING_TYPES
 from pathlib import Path
 from typing import Any
 
@@ -349,7 +351,7 @@ class RunService:
             settings = load_settings()
             plan = build_plan(
                 load_profile(),
-                training=str(settings.get("last_training", "修为")),
+                training=str(settings.get("last_training", DEFAULT_TRAINING)),
                 include_seasonal=bool(settings.get("last_dungeon", False)),
             )
             preview = []
@@ -380,7 +382,7 @@ class RunService:
     ) -> bool:
         if self._busy():
             return False
-        if training not in {"修为", "铜钱", "经验"}:
+        if training not in TRAINING_TYPES:
             raise ValueError("Invalid training choice")
         if resume and not self.can_resume():
             return False

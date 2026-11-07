@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .constants import TRAINING_TYPES
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROFILE = ROOT / "lite" / "daily-profile.json"
@@ -31,6 +33,39 @@ def _resolve_choice(choice: dict[str, Any], selection: str | None) -> str:
     raise ValueError(
         f"Unknown choice {value!r}; expected one of {choice['options']}"
     )
+
+
+def daily_task_names(profile: dict[str, Any] | None = None) -> list[str]:
+    """Every task that can appear in the daily chain, including all training types.
+
+    Unlike ``build_plan`` this ignores the clock and the dungeon switch: the
+    options screen must be able to configure a task even when it is closed today.
+    """
+    data = profile if profile is not None else load_profile()
+    names: list[str] = []
+    for item in data["daily_order"]:
+        kind = item.get("type")
+        if kind == "task":
+            names.append(item["name"])
+        elif kind == "choice":
+            names.extend(item.get("options", []))
+        elif kind == "optional_task":
+            names.append(item["name"])
+    return names
+
+
+def seasonal_default_enabled(profile: dict[str, Any] | None = None) -> bool:
+    """Read the seasonal-daily default from the profile instead of hardcoding."""
+    try:
+        data = profile if profile is not None else load_profile()
+    except Exception:  # noqa: BLE001 - 配置坏了就当未开启，别阻断启动
+        return False
+    for item in data.get("daily_order", []):
+        # 必须限定 seasonal_daily：每日进膳也是 optional_task，谁排在前面
+        # 谁就会被误当成"地宫开关的默认值"（2026-11-07 测试抓到的漂移）。
+        if item.get("type") == "optional_task" and item.get("group") == "seasonal_daily":
+            return bool(item.get("default_enabled", False))
+    return False
 
 
 def window_open(activity: dict[str, Any], now: datetime) -> bool:
@@ -115,7 +150,7 @@ def main() -> int:
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument(
         "--training",
-        choices=["修为", "铜钱", "经验"],
+        choices=list(TRAINING_TYPES),
         default=None,
         help="历练三选一；默认取 profile 中的 default",
     )

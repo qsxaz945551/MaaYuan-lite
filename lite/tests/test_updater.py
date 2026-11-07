@@ -55,6 +55,12 @@ class FrameworkPinTest(unittest.TestCase):
         data = self._check("?")
         self.assertFalse(data["framework"]["available"])
 
+    def test_pinned_version_matches_requirements(self) -> None:
+        """两处 5.6.0 必须同步：装环境用的 requirements 与运行时判断的 pin。"""
+        root = Path(__file__).resolve().parents[2]
+        text = (root / "requirements.txt").read_text(encoding="utf-8")
+        self.assertIn(f"maafw=={FRAMEWORK_PINNED}", text)
+
 
 class ResourceAvailabilityTest(unittest.TestCase):
     def setUp(self) -> None:

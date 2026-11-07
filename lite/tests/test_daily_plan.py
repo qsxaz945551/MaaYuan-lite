@@ -4,7 +4,12 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from lite.daily_plan import build_plan, load_profile
+from lite.daily_plan import (
+    build_plan,
+    daily_task_names,
+    load_profile,
+    seasonal_default_enabled,
+)
 
 MORNING = datetime(2026, 11, 7, 9, 0)
 AFTERNOON = datetime(2026, 11, 7, 16, 0)
@@ -100,6 +105,47 @@ class DailyPlanTest(unittest.TestCase):
         plan = build_plan(self.profile, training="修为", now=MORNING)
         reasons = {item["name"]: item["reason"] for item in plan["skipped"]}
         self.assertEqual(reasons.get("🍚 每日进膳"), "time_window_closed")
+
+    def test_task_names_include_every_branch_regardless_of_clock(self):
+        """/api/task-options 要能配置今天没开的地宫和进膳，所以不能按时间过滤。"""
+        names = daily_task_names(self.profile)
+        self.assertIn("🗡 地宫助手", names)
+        self.assertIn("🍚 每日进膳", names)
+        self.assertIn("💎 修为历练", names)
+        self.assertIn("💲 铜钱历练", names)
+        self.assertIn("⚔️ 经验历练", names)
+
+    def test_seasonal_default_comes_from_profile(self):
+        self.assertFalse(seasonal_default_enabled(self.profile))
+        enabled = {
+            "daily_order": [
+                {
+                    "type": "optional_task",
+                    "group": "seasonal_daily",
+                    "default_enabled": True,
+                },
+            ]
+        }
+        self.assertTrue(seasonal_default_enabled(enabled))
+        self.assertFalse(seasonal_default_enabled({"daily_order": []}))
+
+    def test_time_window_task_does_not_leak_into_the_dungeon_default(self):
+        """每日进膳排在前面且默认开，不能因此把地宫也算成默认开。"""
+        profile = {
+            "daily_order": [
+                {
+                    "type": "optional_task",
+                    "group": "time_window",
+                    "default_enabled": True,
+                },
+                {
+                    "type": "optional_task",
+                    "group": "seasonal_daily",
+                    "default_enabled": False,
+                },
+            ]
+        }
+        self.assertFalse(seasonal_default_enabled(profile))
 
     def test_probe_and_budget_are_forwarded(self):
         plan = build_plan(self.profile, training="修为", include_seasonal=True, now=MORNING)

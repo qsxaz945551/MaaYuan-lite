@@ -16,6 +16,8 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+
+from .constants import DEFAULT_HOST, DEFAULT_PORT
 from typing import Any
 
 OK = "[OK]  "
@@ -255,7 +257,11 @@ def evaluate(project_root: Path, config: dict[str, Any], echo: bool = True) -> R
     _check_agent(report, agent_root)
     _check_adb(report, adb_path, serial)
     _check_interface(report, project_root)
-    _check_port(report, str(config.get("host", "127.0.0.1")), int(config.get("port", 8765)))
+    _check_port(
+        report,
+        str(config.get("host", DEFAULT_HOST)),
+        int(config.get("port", DEFAULT_PORT)),
+    )
 
     _persist(project_root, report)
     return report

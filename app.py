@@ -18,7 +18,13 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from lite.daily_plan import build_plan, load_profile
+from lite.constants import DEFAULT_PORT, DEFAULT_TRAINING
+from lite.daily_plan import (
+    build_plan,
+    daily_task_names,
+    load_profile,
+    seasonal_default_enabled,
+)
 from lite.http_body import read_body
 from lite.run_service import RunService
 from lite.settings import (
@@ -192,42 +198,20 @@ def load_interface() -> dict:
     return json.loads(INTERFACE_FILE.read_text(encoding="utf-8"))
 
 
-def daily_task_names() -> list[str]:
-    """Every task that can appear in the daily chain, including all training types."""
-    names: list[str] = []
-    for item in load_profile()["daily_order"]:
-        kind = item.get("type")
-        if kind == "task":
-            names.append(item["name"])
-        elif kind == "choice":
-            names.extend(item.get("options", []))
-        elif kind == "optional_task":
-            names.append(item["name"])
-    return names
-
-
-def seasonal_default_enabled() -> bool:
-    """Read the seasonal-daily default from the profile instead of hardcoding."""
-    try:
-        profile = load_profile()
-    except Exception:
-        return False
-    for item in profile.get("daily_order", []):
-        if item.get("type") == "optional_task":
-            return bool(item.get("default_enabled", False))
-    return False
-
-
 def _auto_start(service: RunService, settings: dict, delay: float) -> None:
     import time
 
     time.sleep(delay)
     if service.snapshot().get("busy"):
         return
-    service.start_daily(
-        training=str(settings.get("last_training") or "修为"),
-        include_dungeon=bool(settings.get("last_dungeon")),
-    )
+    try:
+        service.start_daily(
+            training=str(settings.get("last_training") or DEFAULT_TRAINING),
+            include_dungeon=bool(settings.get("last_dungeon")),
+        )
+    except Exception as error:  # noqa: BLE001 - background thread, nobody to raise to
+        # 「启动时自动运行」失败曾经完全静默：线程里抛了就没了，界面只看到空闲。
+        service.note(f"启动时自动运行失败：{error}", "error")
 
 
 def _close_app_window(title: str = "MaaYuan Lite") -> None:
@@ -329,9 +313,12 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
             if not raw:
                 return {}
             try:
-                return json.loads(raw.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                raise ValueError(f"请求体不是合法 JSON：{error}") from error
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError as error:
+                # 编码错是另一类问题；JSON 语法错要让它落到 BAD_JSON 分支，
+                # 否则客户端只能拿到笼统的 BAD_REQUEST。
+                raise ValueError(f"请求体不是合法 UTF-8：{error}") from error
+            return json.loads(text)
 
         def do_GET(self):
             parsed = urlparse(self.path)
@@ -349,7 +336,7 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                 return
             if parsed.path == "/api/plan":
                 query = parse_qs(parsed.query)
-                training = query.get("training", ["修为"])[0]
+                training = query.get("training", [DEFAULT_TRAINING])[0]
                 dungeon_raw = query.get("dungeon")
                 dungeon = (
                     seasonal_default_enabled()
@@ -519,7 +506,7 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     )
                     try:
                         started = service.start_daily(
-                            training=str(payload.get("training", "修为")),
+                            training=str(payload.get("training", DEFAULT_TRAINING)),
                             include_dungeon=(
                                 seasonal_default_enabled()
                                 if dungeon_value is None
@@ -535,7 +522,9 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     if started and not payload.get("resume"):
                         save_settings(
                             {
-                                "last_training": str(payload.get("training", "修为")),
+                                "last_training": str(
+                                    payload.get("training", DEFAULT_TRAINING)
+                                ),
                                 "last_dungeon": bool(dungeon_value),
                             }
                         )
@@ -678,7 +667,7 @@ def main() -> int:
         print(action, flush=True)
     agent_guard.rotate_logs(ROOT)
 
-    port = args.port or int(config.get("port", 8765))
+    port = args.port or int(config.get("port", DEFAULT_PORT))
     host = config.get("host", "127.0.0.1")
     service = RunService(ROOT, config)
     if staged_note is not None:
@@ -696,7 +685,7 @@ def main() -> int:
     print(f"MaaYuan Lite 服务: {url}", flush=True)
 
     # The shell reads this instead of parsing stdout; it also makes the real
-    # port visible when 8765 was busy and the server fell back to a random one.
+    # port visible when the default was busy and the server fell back to a random one.
     port_file = ROOT / "runtime" / "port.txt"
     port_file.parent.mkdir(parents=True, exist_ok=True)
     port_file.write_text(str(actual_port), encoding="utf-8")

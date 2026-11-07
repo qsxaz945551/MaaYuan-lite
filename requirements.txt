@@ -1,6 +1,5 @@
 maafw==5.6.0
 loguru
-pandas
 openpyxl
 opencv-python
 pillow

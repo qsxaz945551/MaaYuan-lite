@@ -1,10 +1,10 @@
 """One deep-merge used by both the scoping step and the option overrides.
 
-The two copies had drifted: ``apply_scope.merge_dict`` shared nested objects
-with its input, ``task_overrides.merge_pipeline`` deep-copied them. Sharing
-meant an override could mutate the loaded interface by accident; copying is
-the safer default but wasteful when the caller immediately serialises the
-result. ``copy_values`` keeps both behaviours on one implementation.
+The two call sites used to be separate copies that had drifted: one shared
+nested objects with its input, the other deep-copied them. Sharing meant an
+override could mutate the loaded interface by accident; copying is the safer
+default but wasteful when the caller immediately serialises the result.
+``copy_values`` keeps both behaviours on one implementation.
 """
 
 from __future__ import annotations

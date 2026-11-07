@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .task_overrides import merge_pipeline
+from .deepmerge import deep_merge
+
 
 # Text the game shows on the stamina refill dialog.  Upstream only matches
 # "体力回复", but the 6-24 dialog says "用道具回复" / "用日金市回复" instead,
@@ -159,4 +160,4 @@ def apply_pipeline_fixes(entry: str, override: dict[str, Any]) -> dict[str, Any]
     fix = FIXES.get(entry)
     if not fix:
         return override
-    return merge_pipeline(override, fix)
+    return deep_merge(override, fix)

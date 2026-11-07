@@ -58,20 +58,17 @@ class MergeSemanticsTest(unittest.TestCase):
         self.assertEqual(deep_merge({"a": {"b": 2}}, {"a": 1}), {"a": 1})
 
 
-class AliasesTest(unittest.TestCase):
-    """The two original names must keep working."""
+class CopyModeTest(unittest.TestCase):
+    """The two call-site modes are now explicit at the call site."""
 
-    def test_apply_scope_alias_is_shallow(self) -> None:
-        from lite.apply_scope import merge_dict
-
+    def test_shallow_mode_shares_nested_objects(self) -> None:
+        # apply_scope 立刻把结果写出去，不需要为省一次拷贝而 deepcopy。
         base = {"a": {"x": 1}}
-        self.assertIs(merge_dict(base, {})["a"], base["a"])
+        self.assertIs(deep_merge(base, {}, copy_values=False)["a"], base["a"])
 
-    def test_task_overrides_alias_is_deep(self) -> None:
-        from lite.task_overrides import merge_pipeline
-
+    def test_default_mode_copies_nested_objects(self) -> None:
         base = {"a": {"x": 1}}
-        merged = merge_pipeline(base, {})
+        merged = deep_merge(base, {})
         merged["a"]["x"] = 99
         self.assertEqual(base["a"]["x"], 1)
 

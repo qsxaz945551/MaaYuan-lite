@@ -13,7 +13,7 @@ MaaYuan（如鸢）日常自动化的精简本地客户端：WPF 界面 + 自包
 ## 开发
 
 ```bash
-python devtools/run_tests.py              # 254 项单元测试
+python devtools/run_tests.py              # 295 项单元测试
 python devtools/sync_repo.py --update     # 同步上游 pipeline 到 vendor/MaaYuan-src
 python devtools/build_release.py          # 打包到 dist/MaaYuan-Lite-<版本>
 python devtools/release_switch.py switch <版本>   # 切换 active

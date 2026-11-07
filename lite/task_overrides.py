@@ -14,11 +14,6 @@ from .task_options_service import resolve_index
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def merge_pipeline(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
-    """Thin alias kept for call sites; see ``lite.deepmerge``."""
-    return deep_merge(base, patch, copy_values=True)
-
-
 def _case_index(
     group: dict[str, Any],
     selected: dict[str, Any],
@@ -69,11 +64,11 @@ def _apply_option_group(
             for field in group.get("inputs", [])
         }
         patch = _substitute(copy.deepcopy(group.get("pipeline_override", {})), values)
-        return merge_pipeline(override, patch)
+        return deep_merge(override, patch)
 
     index = _case_index(group, selected, group_name, notes)
     case = group["cases"][index]
-    override = merge_pipeline(override, case.get("pipeline_override", {}))
+    override = deep_merge(override, case.get("pipeline_override", {}))
 
     visiting = visiting | {group_name}
     for child_name in case.get("option", []) or []:

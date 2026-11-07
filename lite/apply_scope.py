@@ -44,11 +44,6 @@ def resolve_source(config_path: Path = DEFAULT_CONFIG) -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
-def merge_dict(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
-    """Thin alias kept for call sites; see ``lite.deepmerge``."""
-    return deep_merge(base, patch, copy_values=False)
-
-
 def load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8-sig") as handle:
         value = json.load(handle)
@@ -91,8 +86,8 @@ def apply_scope(
         if not isinstance(pipeline_patch, dict):
             continue
         task = by_name[task_name]
-        task["pipeline_override"] = merge_dict(
-            task.get("pipeline_override", {}), pipeline_patch
+        task["pipeline_override"] = deep_merge(
+            task.get("pipeline_override", {}), pipeline_patch, copy_values=False
         )
         applied_overrides.append(
             {
