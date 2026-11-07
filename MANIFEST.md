@@ -13,8 +13,8 @@ MaaYuan Lite 的代码分成三类：**自研**（本仓库维护）、**上游*
 | `lite/http_api.py` | 14 条 HTTP 路由（每条一个方法） | 456 行 |
 | `lite/resource_boot.py` | 资源切换、interface 重建、配置加载 | 160 行 |
 | `lite/*.py` | 调度、会话、选项、更新、自检、常量（27 个模块） | 6161 行 |
-| `lite/tests/` | 37 个测试文件 | 302 项用例 |
-| `lite/*.json` | 日常链、选项快照、scope、运行配置、来源清单 | — |
+| `lite/tests/` | 37 个测试文件 | 306 项用例 |
+| `lite/*.json` | 日常链、选项**默认值**、scope、装机配置、来源清单（用户改动一律落在 `runtime/`） | — |
 | `desktop/MaaYuanLite.Desktop/` | WPF 客户端（6 个 .cs + 2 个 .xaml） | 2142 行 C# |
 | `start-lite.bat` | 启动器（**GBK + CRLF**，只拉起 WPF） | 20 行 |
 | `devtools/` | 开发期工具，按 `smoke/` `probe/` `release/` 分组（见 `devtools/README.md`） | 22 个脚本 |
@@ -28,7 +28,7 @@ MaaYuan Lite 的代码分成三类：**自研**（本仓库维护）、**上游*
 |---|---|---|---|
 | `assets/interface.json` | 424 KB | **任务与选项定义源头**，`apply_scope.py` 读它生成裁剪版 | ✅ 文本，可 diff |
 | `assets/.source.json` | 1 KB | 记录来源 commit、子模块 pin、8 个模型 sha256 | ✅ 小文本 |
-| `assets/resource/base/` | 75 MB | 图片模板、OCR 模型、流水线 JSON | ❌ |
+| `assets/resource/base/` | 72 MB | 图片模板、OCR 模型、流水线 JSON | ❌ |
 | `agent/` | 6.9 MB | Python Agent：自定义识别/动作、`*.npz` 索引 | ⚠️ 入库（无 LFS） |
 
 **`agent/` 不再是"只读"**：资源自动更新会连同 agent 脚本一起替换，且在
@@ -37,7 +37,7 @@ MaaYuan Lite 的代码分成三类：**自研**（本仓库维护）、**上游*
 
 ## 运行时（自带，不依赖原版安装）
 
-`runtime_env/` 共 **293 MB**，已被 `.gitignore` 排除，发布包由 `build_release.py` 打包：
+`runtime_env/` 源码树共 **285 MB**（打包时排除 `__pycache__`，落包 263 MB），已被 `.gitignore` 排除，发布包由 `build_release.py` 打包：
 
 ```
 runtime_env/
@@ -58,6 +58,9 @@ runtime_env/
 |---|---|
 | `build/generated/interface.json` | `apply_scope.py` 的裁剪产物，启动时按 mtime 自动重建 |
 | `runtime/port.txt` | 实际监听端口（WPF 读它，不解析 stdout） |
+| `runtime/settings.json` | 用户偏好：启动/结束动作、上次历练档位、资源自动更新开关 |
+| `runtime/task-options.json` | 用户在界面里选的选项档位（`lite/task-options.json` 是随包默认值，只读） |
+| `runtime/task-inputs.json` | 选项里的文本输入值，同上 |
 | `runtime/last-run.json` | 上次运行进度，「继续未完成」依赖它 |
 | `runtime/agent.json` | agent 进程 PID，崩溃后用于清理孤儿 |
 | `runtime/debug/maa.log` | MaaFramework 日志（`Tasker.set_log_dir` 指定） |
@@ -66,6 +69,7 @@ runtime_env/
 | `runtime/cache/*.zip` | 已下载的资源包，保留最近 3 个 |
 | `runtime/selftest.json` | 最近一次自检结果 |
 | `runtime/update-check.json` | 更新检查缓存（6 小时） |
+| `config/`、`debug/`（程序根） | MaaFramework 与 agent 首次运行生成（`maa_option.json`、`pip_config.json`、框架日志）；可随时删，会自动重建。打包/交付前应清掉 |
 | `assets.next/` | 下载完成、等待下次启动切换的暂存树 |
 | `assets.prev/` | 切换前的备份，仅在切换后存在；跑完一轮验收确认无回归即可删除 |
 

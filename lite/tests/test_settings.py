@@ -17,10 +17,16 @@ class SettingsTest(unittest.TestCase):
             json.dumps({"adb_serial": "emulator-5554"}, ensure_ascii=False),
             encoding="utf-8",
         )
+        self.settings_path = Path(self.temp.name) / "runtime" / "settings.json"
         self.patch = mock.patch.object(settings, "CONFIG_FILE", self.path)
         self.patch.start()
+        self.settings_patch = mock.patch.object(
+            settings, "SETTINGS_FILE", self.settings_path
+        )
+        self.settings_patch.start()
 
     def tearDown(self):
+        self.settings_patch.stop()
         self.patch.stop()
         self.temp.cleanup()
 
@@ -36,11 +42,15 @@ class SettingsTest(unittest.TestCase):
         settings.save_settings({"shutdown_action": "bogus"})
         self.assertEqual(settings.load_settings()["shutdown_action"], "none")
 
-    def test_existing_config_is_preserved(self):
+    def test_deploy_config_is_never_rewritten(self):
+        # 装机配置（路径、串号）只在装机时写一次；用户改设置不该动它，
+        # 否则工作区每改一个下拉框就脏一次。
         settings.save_settings({"shutdown_action": "close_both"})
         raw = json.loads(self.path.read_text(encoding="utf-8"))
         self.assertEqual(raw["adb_serial"], "emulator-5554")
-        self.assertEqual(raw["automation"]["shutdown_action"], "close_both")
+        self.assertNotIn("automation", raw)
+        saved = json.loads(self.settings_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["shutdown_action"], "close_both")
 
     def test_legacy_flags_are_migrated(self):
         self.path.write_text(
@@ -127,8 +137,21 @@ class SettingsTest(unittest.TestCase):
 
     def test_atomic_write_leaves_no_temp_file(self):
         settings.save_settings({"last_training": "经验"})
-        leftovers = list(settings.CONFIG_FILE.parent.glob("runtime-config.json.tmp"))
+        leftovers = list(settings.SETTINGS_FILE.parent.glob("settings.json.tmp"))
         self.assertEqual(leftovers, [])
+
+    def test_legacy_automation_moves_to_runtime_file(self):
+        # 0.3.2 及更早：偏好写在 runtime-config.json 的 automation 段里。
+        self.path.write_text(
+            json.dumps({"automation": {"last_training": "铜钱"}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        self.assertEqual(settings.load_settings()["last_training"], "铜钱")
+        self.assertFalse(self.settings_path.exists())
+        settings.save_settings({"last_dungeon": True})
+        saved = json.loads(self.settings_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["last_training"], "铜钱")
+        self.assertTrue(saved["last_dungeon"])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # MaaYuan Lite 项目报告
 
-> 版本：0.3.2（2026-11-07 22:45）  
+> 版本：0.3.3（2026-11-07 23:45）  
 > 定位：**后续开发以本报告为准**，主文档；
 > `LITE.md`（功能现状）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、  
 > 技术债与资产审查见 `docs/AUDIT-20261107-v2.md`（2026-11-07，含清理执行记录）。
@@ -40,13 +40,14 @@
 dist/
   ├─ active.txt                   指向当前版本（Q3 回退指针）
   ├─ 启动 Lite.bat                版本无关入口，按 active.txt 启动
-  └─ MaaYuan-Lite-0.2.3/          343 MB（2999 个文件）
+  └─ MaaYuan-Lite-0.3.3/          343 MB（3001 个文件）
   ├─ MaaYuanLite.Desktop.exe      WPF 客户端（framework-dependent，需 .NET 10 Desktop Runtime；启动脚本会检测并给出下载地址）
   ├─ start-lite.bat               包内入口，拉起 WPF
+  ├─ README.md                    面向使用者的快速上手
   ├─ runtime_env/                 263 MB，CPython 3.12.10 + maa 5.6.0 + 全部依赖
   ├─ assets/                      72 MB，pipeline + 图片模板 + 8 个 OCR 模型
   ├─ agent/                       6.9 MB，Python Agent
-  ├─ lite/                        自研后端
+  ├─ lite/                        自研后端（`*.json` 里的选项是默认值，用户改动写 `runtime/`）
   ├─ build/generated/interface.json
   └─ NOTICE.md                    第三方许可
 ```
@@ -354,6 +355,21 @@ pipeline 节点数、interface 任务数、日常链任务名、`pipeline_fixes`
 | D20 | **体力探测只对消耗体力的任务**（原本任何失败都跑 1.2 秒 OCR，且可能把无关失败误判成"体力耗尽=成功"） |
 | D15 | HTML 控制台不做重构（被 WPF 取代）                                     |
 
+### 3.9 交付打磨（0.3.3）
+
+审查批次全部关闭后，专门做了一轮"能不能交出去"的收尾：
+
+| 项 | 动作 | 结果 |
+|---|---|---|
+| 用户状态与仓库分离 | 新增 `runtime/settings.json`（启动/结束动作等偏好）与 `runtime/task-options.json`（选项）；`lite/*.json` 退为随包默认值，程序只读 | 以前改一次下拉框或选项，git 工作区就脏一次；现在 `git status` 常清洁，换机器也不会把上一个人的选择带过去 |
+| 老配置迁移 | `lite/runtime-config.json` 里的 `automation` 段仍可读，第一次保存时搬到新位置；`lite/task-options.json` 的纯索引条目照旧自动补名称 | 升级用户无感，不改任何选项 |
+| 使用文档 | 重写 `README.md`：前置条件、首次使用、界面、两条限时任务、更新机制、日志排障、恢复默认 | 用户不必读 42 KB 的 `LITE.md` |
+| 纠正过时描述 | `LITE.md` 的三栏布局（还写着 CSS 断点）、"关窗口服务仍在后台"、结束动作文案、agent 日志保留 40 个 | 与实际 WPF 行为一致 |
+| 打包可复现 | 从清理后的源码重跑 `build_release.py`：**14 秒，3001 个文件 / 343.3 MB**；与旧包逐文件对比只差 `README.md` 与运行产物 | 证明 0.3.0 那轮删掉 1 GB 资产没有删到打包依赖 |
+| 包内卫生 | 冒烟会生成 `runtime/`、`config/`、`debug/`，交付前清掉；`README.md` 纳入打包清单 | 包内只剩程序本身 |
+
+测试 302 → **306**（新增用户/默认文件分离 3 项、设置迁移 1 项）。
+
 ---
 
 ## 四、技术架构
@@ -454,13 +470,15 @@ WPF 启动
 
 ### 6.1 体积
 
+> 口径：以下为**文件字节数**合计（`Path.stat().st_size`），与资源管理器"大小"一致；磁盘占用略高。
+
 | 组成 | 体积 |
 |---|---|
-| `runtime_env/`（Python + maa + cv2 + numpy + PIL + MaaAgentBinary） | 293 MB |
-| `assets/resource/base`（pipeline + 图片 + 8 个 OCR 模型） | 75 MB |
-| `agent/` | 8.5 MB |
-| 代码 + WPF + interface | 约 5 MB |
-| **发布包合计** | **343 MB** |
+| `runtime_env/`（Python + maa + cv2 + numpy + PIL + MaaAgentBinary） | 263 MB |
+| `assets/resource/base`（pipeline + 图片 + 8 个 OCR 模型） | 72 MB |
+| `agent/` | 6.9 MB |
+| 代码 + WPF + interface | 约 1 MB |
+| **发布包合计** | **343.3 MB / 3001 个文件** |
 | 原版安装目录 | 985 MB |
 
 原版 985 MB 的构成：MFAAvalonia 137 MB + 无轮转 debug 日志 285 MB + Python 381 MB + 重复的 runtimes 65 MB + 资源/agent 117 MB。
@@ -486,10 +504,10 @@ Lite 的「轻」来自把界面交给系统已有浏览器；WPF 之后不再�
 ### 6.4 测试
 
 ```
-python devtools/run_tests.py      157 项，约 8 秒
+python devtools/run_tests.py     306 项，约 22 秒
 ```
 
-覆盖：设置迁移、选项树、日常计划、调度归类、更新执行器/门禁/下载器、自检、孤儿清理、ANR 识别、方向诊断。
+覆盖：设置迁移、选项树与选项文件存储位置、日常计划、调度归类、更新执行器/门禁/下载器、HTTP 14 条路由（真起服务）、自检、孤儿清理、ANR 识别、方向诊断。
 
 ---
 
@@ -591,11 +609,14 @@ python devtools/smoke/inject_fault.py <fault>      # Q2 故障注入（emulator/
 ## 十、下一步建议的顺序
 
 ```
-1. 完整日常回归（V3）       ← 用今天的代码再跑一次 8 项，确认体力/看门狗/收尾改动无回归
-2. Q4 长稳 24 小时          ← 采样工具已就绪（soak_check.py），需服务连续在线
-3. 技术债 P2 按需           ← O2/O3/O4 收益都很小
-4. 删原版目录               ← 用户决定时机
+1. 用 0.3.3 包跑一轮完整日常   ← 0.3.3 改了配置落点（settings / task-options 移到 runtime/），
+                                 跑一轮顺带确认选项与启动/结束动作读写正常
+2. Q4 长稳 24 小时            ← 采样工具已就绪（soak_check.py），需服务连续在线
+3. 技术债 P2 按需             ← O2/O3/O4 收益都很小
+4. 框架升级（maa 5.6.0 → 5.15.x）← 需装 pip、重验全部 pipeline，收益未量化，排在最后
 ```
+
+0.3.2 的完整日常回归已通过（8 成功 + 1 未领取 + 0 失败，619.6 s），0.3.3 只动了配置路径与文档，未动调度层。
 
 M7 之前不建议加新功能：调度层还有两处半成品，现在加功能会让回归面变大。
 

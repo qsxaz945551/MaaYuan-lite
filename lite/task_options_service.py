@@ -9,8 +9,13 @@ from typing import Any, Iterable
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SELECTION = ROOT / "lite" / "task-options.json"
-DEFAULT_INPUTS = ROOT / "lite" / "task-inputs.json"
+
+# 入库的默认值：随代码走，运行时只读。用户勾选写进 runtime/，否则每改一次选项，
+# git 工作区就脏一次，换台机器还会把上一个人选过的档位带进新装。
+SEED_SELECTION = ROOT / "lite" / "task-options.json"
+SEED_INPUTS = ROOT / "lite" / "task-inputs.json"
+DEFAULT_SELECTION = ROOT / "runtime" / "task-options.json"
+DEFAULT_INPUTS = ROOT / "runtime" / "task-inputs.json"
 
 
 class OptionError(ValueError):
@@ -33,15 +38,29 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     temp.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    os.replace(temp, path)
+    try:
+        os.replace(temp, path)
+    except PermissionError:
+        # Antivirus / folder redirection can hold the target open; replacing it
+        # would fail where overwriting still works. Losing atomicity here is
+        # better than losing the user's selection.
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        temp.unlink(missing_ok=True)
 
 
 def load_selection(path: Path | None = None) -> dict[str, dict[str, int]]:
-    return load_json(path or DEFAULT_SELECTION)
+    if path is not None:
+        return load_json(path)
+    # 用户还没改过任何选项时没有 runtime/ 文件，此时用入库默认值。
+    return load_json(DEFAULT_SELECTION) or load_json(SEED_SELECTION)
 
 
 def load_inputs(path: Path | None = None) -> dict[str, dict[str, dict[str, str]]]:
-    return load_json(path or DEFAULT_INPUTS)
+    if path is not None:
+        return load_json(path)
+    return load_json(DEFAULT_INPUTS) or load_json(SEED_INPUTS)
 
 
 def default_index(group: dict[str, Any]) -> int:
@@ -314,7 +333,7 @@ def backfill_labels(
     把名字记下来，以后上游重排就不会指错。只补能确定的条目，其它原样保留。
     """
     target = path or DEFAULT_SELECTION
-    selection = load_json(target)
+    selection = load_json(target) if path is not None else load_selection()
     if not selection:
         return 0
 

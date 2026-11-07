@@ -81,6 +81,11 @@ class HTTPApiTest(unittest.TestCase):
         )
         self.config_patch = mock.patch.object(settings, "CONFIG_FILE", self.config_path)
         self.config_patch.start()
+        self.settings_path = Path(self.temp.name) / "runtime" / "settings.json"
+        self.settings_patch = mock.patch.object(
+            settings, "SETTINGS_FILE", self.settings_path
+        )
+        self.settings_patch.start()
 
         # 健康检查结果缓存是模块级的，测试之间要清掉。
         from lite import http_api
@@ -103,6 +108,7 @@ class HTTPApiTest(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=3)
+        self.settings_patch.stop()
         self.config_patch.stop()
         self.temp.cleanup()
 
@@ -216,8 +222,11 @@ class HTTPApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
         self.assertEqual(body["settings"]["startupAction"], "auto_run")
-        stored = json.loads(self.config_path.read_text(encoding="utf-8"))
-        self.assertEqual(stored["automation"]["startup_action"], "auto_run")
+        # 用户偏好写 runtime/settings.json，装机配置保持不变
+        stored = json.loads(self.settings_path.read_text(encoding="utf-8"))
+        self.assertEqual(stored["startup_action"], "auto_run")
+        config = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertEqual(config["automation"], {})
 
     def test_note_is_written_with_prefix(self) -> None:
         status, body = self.request(

@@ -170,7 +170,7 @@ def main() -> int:
         json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
-    for name in ("app.py", "NOTICE.md", "LITE.md", "MANIFEST.md"):
+    for name in ("app.py", "README.md", "NOTICE.md", "LITE.md", "MANIFEST.md"):
         source = ROOT / name
         if source.is_file():
             shutil.copy2(source, target / name)

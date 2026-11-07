@@ -114,7 +114,7 @@ def main() -> int:
         )
         filled = backfill_labels(interface_data)
         if filled:
-            print(f"已为 {filled} 个选项选择补记名称（task-options.json）", flush=True)
+            print(f"已为 {filled} 个选项选择补记名称（runtime/task-options.json）", flush=True)
     except (OSError, ValueError) as error:
         print(f"选项名称补记失败（不影响启动）：{error}", file=sys.stderr)
 

@@ -12,7 +12,10 @@ from .constants import DEFAULT_TRAINING
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# 部署配置：路径、端口、串号。装机时定下，程序不写它。
 CONFIG_FILE = ROOT / "lite" / "runtime-config.json"
+# 用户偏好：启动/结束动作、上次选的历练档位。改一次就写一次，所以放 runtime/。
+SETTINGS_FILE = ROOT / "runtime" / "settings.json"
 
 # Serialises read-modify-write: the WPF shell can fire two saves (startup and
 # shutdown dropdowns) within the same second and one used to overwrite the other.
@@ -69,6 +72,28 @@ def load_config() -> dict[str, Any]:
         return json.load(handle)
 
 
+def _read_object(path: Path) -> dict[str, Any] | None:
+    """读一个 JSON 对象；不存在或读坏都返回 None，让调用方走兜底。"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _stored() -> dict[str, Any]:
+    """用户偏好：优先 runtime/settings.json。
+
+    0.3.2 及更早版本把 ``automation`` 写在 ``lite/runtime-config.json`` 里，与装机
+    路径混在一起，改一次设置就让工作区变脏。旧位置仍然可读，第一次保存时才搬家。
+    """
+    data = _read_object(SETTINGS_FILE)
+    if data is not None:
+        return data
+    legacy = (_read_object(CONFIG_FILE) or {}).get("automation")
+    return legacy if isinstance(legacy, dict) else {}
+
+
 def _migrate(data: dict[str, Any]) -> dict[str, Any]:
     """Map the old boolean flags onto the two action enums."""
     if "startup_action" in data or "shutdown_action" in data:
@@ -91,8 +116,7 @@ def _migrate(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_settings() -> dict[str, Any]:
-    raw = load_config().get("automation") or {}
-    data = _migrate(dict(raw))
+    data = _migrate(dict(_stored()))
     merged = dict(DEFAULTS)
     merged.update({key: data[key] for key in data if key in DEFAULTS})
     if merged["startup_action"] not in STARTUP_ACTIONS:
@@ -109,17 +133,23 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     file or the new one, never a truncated JSON.
     """
     temp = path.with_suffix(path.suffix + ".tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    os.replace(temp, path)
+    try:
+        os.replace(temp, path)
+    except PermissionError:
+        # 目标被占用（杀软扫描、文件夹重定向）时，覆盖写仍可成功。
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        temp.unlink(missing_ok=True)
 
 
 def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
     with _WRITE_LOCK:
-        config = load_config()
-        current = dict(DEFAULTS)
-        current.update(_migrate(dict(config.get("automation") or {})))
+        current = load_settings()
         for key, value in patch.items():
             if key == "startup_action" and value in STARTUP_ACTIONS:
                 current[key] = value
@@ -131,6 +161,5 @@ def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
                 current[key] = bool(value)
             elif key == "auto_update_resources":
                 current[key] = bool(value)
-        config["automation"] = current
-        _write_json_atomic(CONFIG_FILE, config)
+        _write_json_atomic(SETTINGS_FILE, current)
         return current

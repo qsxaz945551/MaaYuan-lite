@@ -136,5 +136,67 @@ class InputOverrideTest(unittest.TestCase):
         self.assertEqual(threshold, "0.92")
 
 
+class StorageLocationTest(unittest.TestCase):
+    """默认值随代码入库，用户选择写 runtime/ —— 两者不能互相污染。"""
+
+    def setUp(self):
+        import tempfile
+        from unittest import mock
+
+        from lite import task_options_service as svc
+
+        self.svc = svc
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.seed = root / "lite" / "task-options.json"
+        self.user = root / "runtime" / "task-options.json"
+        self.seed.parent.mkdir(parents=True)
+        self.seed.write_text(
+            json.dumps({"🚀 启动游戏": {"请选择游戏版本": {"index": 0, "label": "A"}}}),
+            encoding="utf-8",
+        )
+        self.patches = [
+            mock.patch.object(svc, "SEED_SELECTION", self.seed),
+            mock.patch.object(svc, "DEFAULT_SELECTION", self.user),
+        ]
+        for patch in self.patches:
+            patch.start()
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+        self.temp.cleanup()
+
+    def test_missing_user_file_falls_back_to_seed(self):
+        self.assertEqual(
+            self.svc.load_selection()["🚀 启动游戏"]["请选择游戏版本"]["label"], "A"
+        )
+
+    def test_user_file_wins(self):
+        self.user.parent.mkdir(parents=True, exist_ok=True)
+        self.user.write_text(
+            json.dumps({"🚀 启动游戏": {"请选择游戏版本": {"index": 1, "label": "B"}}}),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self.svc.load_selection()["🚀 启动游戏"]["请选择游戏版本"]["label"], "B"
+        )
+
+    def test_backfill_writes_runtime_copy_not_seed(self):
+        interface = {
+            "option": {"请选择游戏版本": {"cases": [{"name": "A"}, {"name": "B"}]}}
+        }
+        self.seed.write_text(
+            json.dumps({"🚀 启动游戏": {"请选择游戏版本": 1}}), encoding="utf-8"
+        )
+        legacy = self.seed.read_text(encoding="utf-8")
+        filled = self.svc.backfill_labels(interface)
+        self.assertEqual(filled, 1)
+        # 入库默认值一个字节都不该被动过
+        self.assertEqual(self.seed.read_text(encoding="utf-8"), legacy)
+        saved = json.loads(self.user.read_text(encoding="utf-8"))
+        self.assertEqual(saved["🚀 启动游戏"]["请选择游戏版本"]["label"], "B")
+
+
 if __name__ == "__main__":
     unittest.main()
