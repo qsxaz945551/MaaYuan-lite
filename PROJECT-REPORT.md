@@ -1,6 +1,6 @@
 # MaaYuan Lite 项目报告
 
-> 版本：0.3.0（2026-11-07 22:05）  
+> 版本：0.3.2（2026-11-07 22:45）  
 > 定位：**后续开发以本报告为准**，主文档；
 > `LITE.md`（功能现状）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、  
 > 技术债与资产审查见 `docs/AUDIT-20261107-v2.md`（2026-11-07，含清理执行记录）。
@@ -52,7 +52,7 @@ dist/
 ```
 
 > 2026-11-05 晚给 `start-lite.bat` 与 `dist\启动 Lite.bat` 补了 .NET 10 运行时探测（缺失时打印下载地址并退出码 1）。
-> 模板在 `devtools/build_release.py` 的 `START_BAT`；0.2.2 是就地打补丁，**0.2.3 已整体重打包并切为 active**，包含 11-05 之后全部运行期修复。
+> 模板在 `devtools/release/build_release.py` 的 `START_BAT`；0.2.2 是就地打补丁，**0.2.3 已整体重打包并切为 active**，包含 11-05 之后全部运行期修复。
 
 ---
 
@@ -64,7 +64,7 @@ dist/
 | ------ | ------------- | -- | -------------------------------------------------------------- |
 | **V1** | 原版目录不可用仍能启动   | ✅  | 原版改名为 `.disabled` 后，`start-lite.bat` 正常起进程，`/api/state` 返回 200 |
 | **V2** | 原版目录不可用仍能连机   | ✅  | 同一状态下「检查连接」成功，截图 720×1280 非黑屏                                  |
-| **V3** | 原版目录不可用仍能跑完日常 | ✅ | 2026-11-05 20:02 用当前代码跑完整链：7/8 + 续跑补齐 = **8/8**，任务耗时合计约 508 s。鸢报 133.7 s 体力耗尽正常结束；收尾首轮因当天已在别处领过密探特训而中止（上游无「已领取」兜底），续跑 150 s 成功。**2026-11-07 09:36 用 0.2.3 发布包一次跑通 8/8，496 s**：鸢报 134.3 s（旧包在此被 150 s 看门狗误杀）、收尾 159.2 s（旧包在此失败），证明修复已进入发布形态 |
+| **V3** | 原版目录不可用仍能跑完日常 | ✅ | 2026-11-05 20:02 用当前代码跑完整链：7/8 + 续跑补齐 = **8/8**，任务耗时合计约 508 s。鸢报 133.7 s 体力耗尽正常结束；收尾首轮因当天已在别处领过密探特训而中止（上游无「已领取」兜底），续跑 150 s 成功。**2026-11-07 09:36 用 0.2.3 发布包一次跑通 8/8，496 s**：鸢报 134.3 s（旧包在此被 150 s 看门狗误杀）、收尾 159.2 s（旧包在此失败），证明修复已进入发布形态。**2026-11-07 22:39 用 0.3.2 发布包再跑：8 成功 + 1 未领取 + 0 失败，619.6 s**（鸢报 131.3 s 鸟食不足记未领取；收尾 157.7 s；`devtools/release/verify_chain.py`） |
 | **V4** | 路径无关          | ✅  | 复制到 `D:\测试 目录\MaaYuan Lite\`（中文 + 空格），自检全绿                     |
 | **V5** | 干净环境          | ✅  | `set PATH=C:\Windows\system32` 启动，自检全绿，不依赖系统 Python            |
 | **V6** | 断网可用          | ◐  | 启动与自检全程不联网；实时断网未单独验证（GitHub 长期不可达，等价覆盖）                        |
@@ -94,7 +94,7 @@ dist/
 | 项        | 内容                                                                                                                          |
 | -------- | --------------------------------------------------------------------------------------------------------------------------- |
 | git 版本控制 | 37 次提交，起点 `23a86dc`（2026-11-01 迁移前快照）                                                                                       |
-| 依赖测绘     | `devtools/audit_runtime.py` 静态扫描 import 与 site-packages 差集，输出「需要/冗余/缺失」三张表                                                  |
+| 依赖测绘     | `devtools/probe/audit_runtime.py` 静态扫描 import 与 site-packages 差集，输出「需要/冗余/缺失」三张表                                                  |
 | 引用测绘     | `grep "Apps Game"` 全仓库 + 进程句柄实测，得到文件级引用清单                                                                                   |
 | 测试入口     | `devtools/run_tests.py`。**embeddable Python 的 `python312._pth` 覆盖了 `sys.path`**，cwd 不在其中、`PYTHONPATH` 被忽略，所以必须有这个显式插入项目根的入口 |
 
@@ -273,10 +273,10 @@ desktop/MaaYuanLite.Desktop/    18 个文件
 
 | 项                           | 内容                                                                                                                               |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `devtools/build_release.py` | `dotnet publish` → 重建 interface → 复制 runtime_env/assets/agent/lite/docs → 写 `start-lite.bat` → 产出 `dist/MaaYuan-Lite-<version>/` |
+| `devtools/release/build_release.py` | `dotnet publish` → 重建 interface → 复制 runtime_env/assets/agent/lite/docs → 写 `start-lite.bat` → 产出 `dist/MaaYuan-Lite-<version>/` |
 | 产物                          | 343 MB / 3000 文件；`grep "Apps Game"` 为零                                                                                           |
-| `devtools/smoke_release.py` | 对**已打包目录**做一次自检：起包内运行时 → `/api/meta` 版本 → `/api/health` → 可选 `/api/check`（只连接+截图）→ `/api/exit`。`--skip-game` 跳过连机 |
-| `devtools/upgrade.py`       | 默认预演，`--apply` 才执行；保留 `lite/*.json`、`runtime/`；配置先备份到 `runtime/upgrade-backup-<时间>/`                                             |
+| `devtools/smoke/smoke_release.py` | 对**已打包目录**做一次自检：起包内运行时 → `/api/meta` 版本 → `/api/health` → 可选 `/api/check`（只连接+截图）→ `/api/exit`。`--skip-game` 跳过连机 |
+| `devtools/release/upgrade.py`       | 默认预演，`--apply` 才执行；保留 `lite/*.json`、`runtime/`；配置先备份到 `runtime/upgrade-backup-<时间>/`                                             |
 | `NOTICE.md`                 | 11 个第三方组件及许可                                                                                                                     |
 
 ### 3.7 M6 启动自检与资源更新
@@ -505,10 +505,10 @@ python devtools/run_tests.py      157 项，约 8 秒
 
 | ID | 内容 | 验收 |
 |---|---|---|
-| **Q1** | 连续 10 次日常 | ✅ 2026-11-05 以「观星 ×10」验证（日常每天只能完整跑一次，用单任务代理跑满 10 轮）：**10/10 成功**，句柄 939 → 933（无单调上涨），内存 439 → 454 MB（区间 437–535，有涨有落）。工具：`python devtools/stability_run.py --spawn --task "🔮 观星" --times 10` |
+| **Q1** | 连续 10 次日常 | ✅ 2026-11-05 以「观星 ×10」验证（日常每天只能完整跑一次，用单任务代理跑满 10 轮）：**10/10 成功**，句柄 939 → 933（无单调上涨），内存 439 → 454 MB（区间 437–535，有涨有落）。工具：`python devtools/smoke/stability_run.py --spawn --task "🔮 观星" --times 10` |
 | **Q2** | 故障注入 | 杀 agent ✅、锁屏 ✅、鸢报卡死 ✅；**模拟器重启 ✅（明确报错）**：重启后游戏被杀、界面回到横屏桌面，任务 47.6 s 判失败、状态 `completed_with_errors`，服务全程 35 次探测均有响应；随后新增「横屏+无进展 → 中止整轮」。断网 ⏭ 跳过（飞行模式会把模拟器搞坏）。⚠ 模拟器只能由用户手动启动（AGENTS.md R2）：沙箱会在 AI 命令结束时回收进程树并让 VM 有序关机 |
 | **Q3** | 回退包 | ✅ 每版独立目录 + `dist/active.txt` 指针；`dist/启动 Lite.bat` 按指针启动。**实测：切换 + 启动到服务就绪 4 秒**（0.2.1 与 0.2.0 分别验证，`/api/meta` 版本号正确）|
-| **Q4** | 长稳 24 小时 | ⏳ 采样工具就绪：`python devtools/soak_check.py`（采一次追加 `runtime/soak.csv`）与 `--summary`（看趋势：句柄/内存/日志体积）。挂到任务计划里每 15–30 分钟一次即可，不需要模拟器参与 |
+| **Q4** | 长稳 24 小时 | ⏳ 采样工具就绪：`python devtools/smoke/soak_check.py`（采一次追加 `runtime/soak.csv`）与 `--summary`（看趋势：句柄/内存/日志体积）。挂到任务计划里每 15–30 分钟一次即可，不需要模拟器参与 |
 
 ### 7.3 技术债（P2）
 
@@ -561,29 +561,29 @@ python app.py --selftest                     # 10 项环境自检
 python app.py --port 8790                    # 只起服务
 
 # 构建
-python devtools/build_release.py             # 产出 dist/MaaYuan-Lite-<version>/
+python devtools/release/build_release.py             # 产出 dist/MaaYuan-Lite-<version>/
 dotnet build desktop/MaaYuanLite.Desktop     # 只编 WPF
 
 # 上游同步（开发期）
-python devtools/sync_repo.py                 # 克隆上游到 vendor/ + 下载模型
-python devtools/sync_repo.py --update        # 拉最新提交
-python devtools/check_upstream.py            # 任务名/节点名兼容性检查
+python devtools/release/sync_repo.py                 # 克隆上游到 vendor/ + 下载模型
+python devtools/release/sync_repo.py --update        # 拉最新提交
+python devtools/probe/check_upstream.py            # 任务名/节点名兼容性检查
 
 # 回退（Q3）
-python devtools/release_switch.py list       # 列版本 + 当前指向
-python devtools/release_switch.py switch previous   # 切回上一版
-python devtools/release_switch.py prune --keep 2    # 只留最近两版
+python devtools/release/release_switch.py list       # 列版本 + 当前指向
+python devtools/release/release_switch.py switch previous   # 切回上一版
+python devtools/release/release_switch.py prune --keep 2    # 只留最近两版
 
 # 升级已有安装
-python devtools/upgrade.py                   # 预演
-python devtools/upgrade.py --apply           # 执行
+python devtools/release/upgrade.py                   # 预演
+python devtools/release/upgrade.py --apply           # 执行
 
 # 端到端冒烟
-python devtools/smoke_update.py              # 造暂存树 → 切换 → 回滚
-python devtools/smoke_daily.py               # 完整日常实跑（V3），服务自带启停
-python devtools/stability_run.py --spawn --task "🔮 观星" --times 10   # 连续跑（Q1）
-python devtools/smoke_emulator_restart.py    # Q2 重启模拟器——仅用户手动执行，见 AGENTS.md R2
-python devtools/inject_fault.py <fault>      # Q2 故障注入（emulator/network 需用户放行）
+python devtools/smoke/smoke_update.py              # 造暂存树 → 切换 → 回滚
+python devtools/smoke/smoke_daily.py               # 完整日常实跑（V3），服务自带启停
+python devtools/smoke/stability_run.py --spawn --task "🔮 观星" --times 10   # 连续跑（Q1）
+python devtools/smoke/smoke_emulator_restart.py    # Q2 重启模拟器——仅用户手动执行，见 AGENTS.md R2
+python devtools/smoke/inject_fault.py <fault>      # Q2 故障注入（emulator/network 需用户放行）
 ```
 
 ---

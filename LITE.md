@@ -129,7 +129,7 @@ python lite/apply_scope.py
   更新永远被拒。门禁失败时日志会带上前三条具体问题。
 - 资源切换是整目录 rename，会带走 Lite 自己放进 `assets/resource/base` 的文件；
   `update_applier.RESOURCE_EXTRAS` 列出这些文件（目前是 `image/activity_title.png`），
-  切换后从备份补回，清单与 `devtools/upgrade.py` 的 KEEP 一致。
+  切换后从备份补回，清单与 `devtools/release/upgrade.py` 的 KEEP 一致。
 - 更新徽章的点击语义按状态区分：下载中 → 只提示进度；已下载待生效 → 询问是否重启；
   只有框架提示 → 只展示详情（过去会误问"要不要下载资源"，而资源其实已是最新）。
 
@@ -493,7 +493,7 @@ AI 只用 `adb devices` 检测 `emulator-5554` 是否就绪，未就绪就请用
 
 > 注：该场景的 `ldconsole quit` + `launch` 是在 **2026-11-05 建立 AGENTS.md R2 之前**做的。
 > 现在这类操作只能在用户手动启动的模拟器上进行，AI 不再自行 launch/quit；
-> `devtools/smoke_emulator_restart.py` 已加闸门，需用户设置环境变量才能跑。
+> `devtools/smoke/smoke_emulator_restart.py` 已加闸门，需用户设置环境变量才能跑。
 
 跑「启动游戏」，25 秒后 `ldconsole quit` + `launch`：
 

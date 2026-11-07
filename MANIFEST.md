@@ -3,19 +3,21 @@
 MaaYuan Lite 的代码分成三类：**自研**（本仓库维护）、**上游**（从 MaaYuan 复制，
 会被资源更新替换）、**生成**（运行时产生，不入库）。
 
-本文件定义这条边界，打包（`devtools/build_release.py`）按此决定带什么。
+本文件定义这条边界，打包（`devtools/release/build_release.py`）按此决定带什么。
 
 ## 自研（需要维护、需要入库）
 
 | 路径 | 说明 | 规模 |
 |---|---|---|
-| `app.py` | HTTP 服务、进程守卫、启动编排 | 738 行 |
-| `lite/*.py` | 调度、会话、选项、更新、自检、常量（25 个模块） | 5544 行 |
-| `lite/tests/` | 37 个测试文件 | 295 项用例 |
+| `app.py` | 组合根：进程守卫、启动编排 | 234 行 |
+| `lite/http_api.py` | 14 条 HTTP 路由（每条一个方法） | 456 行 |
+| `lite/resource_boot.py` | 资源切换、interface 重建、配置加载 | 160 行 |
+| `lite/*.py` | 调度、会话、选项、更新、自检、常量（27 个模块） | 6161 行 |
+| `lite/tests/` | 37 个测试文件 | 302 项用例 |
 | `lite/*.json` | 日常链、选项快照、scope、运行配置、来源清单 | — |
 | `desktop/MaaYuanLite.Desktop/` | WPF 客户端（6 个 .cs + 2 个 .xaml） | 2142 行 C# |
 | `start-lite.bat` | 启动器（**GBK + CRLF**，只拉起 WPF） | 20 行 |
-| `devtools/` | 开发期工具（同步、自检、打包、测量、验收） | 22 个脚本 |
+| `devtools/` | 开发期工具，按 `smoke/` `probe/` `release/` 分组（见 `devtools/README.md`） | 22 个脚本 |
 | `docs/api-contract.md` | 字段级 API 契约与错误码表 | — |
 | `NOTICE.md` | 第三方声明 | — |
 | `LITE.md` / `MANIFEST.md` / `PROJECT-REPORT.md` | 项目文档 | — |
@@ -27,7 +29,7 @@ MaaYuan Lite 的代码分成三类：**自研**（本仓库维护）、**上游*
 | `assets/interface.json` | 424 KB | **任务与选项定义源头**，`apply_scope.py` 读它生成裁剪版 | ✅ 文本，可 diff |
 | `assets/.source.json` | 1 KB | 记录来源 commit、子模块 pin、8 个模型 sha256 | ✅ 小文本 |
 | `assets/resource/base/` | 75 MB | 图片模板、OCR 模型、流水线 JSON | ❌ |
-| `agent/` | 7.5 MB | Python Agent：自定义识别/动作、`*.npz` 索引 | ⚠️ 入库（无 LFS） |
+| `agent/` | 6.9 MB | Python Agent：自定义识别/动作、`*.npz` 索引 | ⚠️ 入库（无 LFS） |
 
 **`agent/` 不再是"只读"**：资源自动更新会连同 agent 脚本一起替换，且在
 `apply_staged` 里与 `resource/base` 原子切换。改 agent 的补丁应写在
@@ -64,7 +66,8 @@ runtime_env/
 | `runtime/cache/*.zip` | 已下载的资源包，保留最近 3 个 |
 | `runtime/selftest.json` | 最近一次自检结果 |
 | `runtime/update-check.json` | 更新检查缓存（6 小时） |
-| `assets.next/` `assets.prev/` | 资源切换的暂存与备份，切换瞬间存在 |
+| `assets.next/` | 下载完成、等待下次启动切换的暂存树 |
+| `assets.prev/` | 切换前的备份，仅在切换后存在；跑完一轮验收确认无回归即可删除 |
 
 ## 资源更新（两条路径）
 
@@ -83,9 +86,9 @@ runtime_env/
 ### 开发侧：`sync_repo.py`
 
 ```bash
-python devtools/sync_repo.py            # 克隆上游到 vendor/MaaYuan-src 并下载模型
-python devtools/sync_repo.py --update   # 拉最新提交
-python devtools/sync_repo.py --check    # 只看版本
+python devtools/release/sync_repo.py            # 克隆上游到 vendor/MaaYuan-src 并下载模型
+python devtools/release/sync_repo.py --update   # 拉最新提交
+python devtools/release/sync_repo.py --check    # 只看版本
 ```
 
 克隆落在 `vendor/MaaYuan-src/`（约 181 MB，已 gitignore）。开发配置若指向
@@ -95,7 +98,7 @@ python devtools/sync_repo.py --check    # 只看版本
 ### 更新后的兼容性检查
 
 ```bash
-python devtools/check_upstream.py
+python devtools/probe/check_upstream.py
 ```
 
 校验资源完整性、`daily-profile` 任务名、`pipeline_fixes` / `round_progress` 依赖的
@@ -116,7 +119,7 @@ python devtools/check_upstream.py
 
 1. `git clone` 本仓库（`assets/resource`、`runtime_env`、`vendor` 不入库）
 2. 准备运行时：复制一份 embeddable Python 到 `runtime_env/python/`，`pip install maa MaaAgentBinary opencv-python numpy pillow loguru zhconv jsonschema openpyxl`
-3. 准备资源：`python devtools/sync_repo.py`（或让下载器跑一次）
+3. 准备资源：`python devtools/release/sync_repo.py`（或让下载器跑一次）
 4. `python lite/apply_scope.py` 生成 interface
 5. `python devtools/run_tests.py` 跑测试，`python app.py --selftest` 查环境
 6. `dotnet build desktop/MaaYuanLite.Desktop` 编译 WPF，双击 `start-lite.bat`

@@ -1,6 +1,6 @@
 """Gate a resource update: reject it before it replaces a working copy.
 
-The checks mirror what ``devtools/check_upstream.py`` reports, but live in the
+The checks mirror what ``devtools/probe/check_upstream.py`` reports, but live in the
 runtime package so the updater can call them without shipping devtools.
 
 Usage:

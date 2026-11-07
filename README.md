@@ -13,12 +13,12 @@ MaaYuan（如鸢）日常自动化的精简本地客户端：WPF 界面 + 自包
 ## 开发
 
 ```bash
-python devtools/run_tests.py              # 295 项单元测试
-python devtools/sync_repo.py --update     # 同步上游 pipeline 到 vendor/MaaYuan-src
-python devtools/build_release.py          # 打包到 dist/MaaYuan-Lite-<版本>
-python devtools/release_switch.py switch <版本>   # 切换 active
-python devtools/smoke_release.py          # 对打包产物做 version/health 自检
-python devtools/verify_chain.py           # 用发布包跑一整轮日常（8–13 分钟）
+python devtools/run_tests.py              # 302 项单元测试
+python devtools/release/sync_repo.py --update     # 同步上游 pipeline 到 vendor/MaaYuan-src
+python devtools/release/build_release.py          # 打包到 dist/MaaYuan-Lite-<版本>
+python devtools/release/release_switch.py switch <版本>   # 切换 active
+python devtools/smoke/smoke_release.py          # 对打包产物做 version/health 自检
+python devtools/release/verify_chain.py           # 用发布包跑一整轮日常（8–13 分钟）
 dotnet build desktop/MaaYuanLite.Desktop  # 编译 WPF 客户端
 ```
 

@@ -28,7 +28,7 @@ BACKUP = "assets.prev"
 
 # 上游资源树里没有、由 Lite 自己放进 assets/resource/base 的文件。
 # 切换是整目录 rename，这些文件会被静默带走——活动页判页用的模板图就踩过这个坑。
-# 与 devtools/upgrade.py 的 KEEP 保持同一份清单。
+# 与 devtools/release/upgrade.py 的 KEEP 保持同一份清单。
 RESOURCE_EXTRAS = ("image/activity_title.png",)
 
 

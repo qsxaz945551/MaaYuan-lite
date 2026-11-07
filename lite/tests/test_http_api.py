@@ -14,6 +14,7 @@ import tempfile
 import unittest
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from pathlib import Path
 from unittest import mock
 
@@ -31,6 +32,8 @@ class FakeService:
         self.start_result = True
         self.start_error: Exception | None = None
         self.sequence_error: Exception | None = None
+        self.check_result = True
+        self._last_screenshot = Path("does-not-exist.png")
         self.snapshot_value = {
             "status": "idle",
             "currentTask": "",
@@ -55,6 +58,13 @@ class FakeService:
             raise self.start_error
         return self.start_result
 
+    def check_connection(self) -> bool:
+        self.calls.append(("check_connection",))
+        return self.check_result
+
+    def stop(self) -> None:
+        self.calls.append(("stop",))
+
     def run_sequence(self, names: list[str]) -> bool:
         self.calls.append(("run_sequence", names))
         if self.sequence_error is not None:
@@ -71,6 +81,12 @@ class HTTPApiTest(unittest.TestCase):
         )
         self.config_patch = mock.patch.object(settings, "CONFIG_FILE", self.config_path)
         self.config_patch.start()
+
+        # 健康检查结果缓存是模块级的，测试之间要清掉。
+        from lite import http_api
+
+        http_api._HEALTH_CACHE["data"] = None
+        http_api._HEALTH_CACHE["at"] = 0.0
 
         self.service = FakeService()
         self.server = app.LiteHTTPServer(
@@ -129,6 +145,62 @@ class HTTPApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "idle")
         self.assertIn(("snapshot", 7), self.service.calls)
+
+    def test_plan_uses_the_dungeon_default_from_the_profile(self) -> None:
+        """地宫默认关闭：不传 dungeon 时计划里不该有它；dungeon=1 才加入。"""
+        training = quote("修为")
+        status, body = self.request("GET", f"/api/plan?training={training}")
+        self.assertEqual(status, 200)
+        names = [task["name"] for task in body["tasks"]]
+        self.assertNotIn("🗡 地宫助手", names)
+
+        status, body = self.request(
+            "GET", f"/api/plan?training={training}&dungeon=1"
+        )
+        self.assertEqual(status, 200)
+        names = [task["name"] for task in body["tasks"]]
+        self.assertIn("🗡 地宫助手", names)
+
+    def test_health_is_cached_between_calls(self) -> None:
+        with mock.patch(
+            "lite.selftest.collect", return_value={"ok": True, "checks": []}
+        ) as collect:
+            first = self.request("GET", "/api/health")
+            second = self.request("GET", "/api/health")
+        self.assertEqual(first, (200, {"ok": True, "checks": []}))
+        self.assertEqual(second[0], 200)
+        self.assertEqual(collect.call_count, 1)
+
+    def test_screenshot_reports_missing_file(self) -> None:
+        status, body = self.request("GET", "/api/screenshot")
+        self.assertEqual(status, 404)
+        self.assertEqual(body["code"], "NO_SCREENSHOT")
+
+    def test_screenshot_returns_png_bytes(self) -> None:
+        png = Path(self.temp.name) / "shot.png"
+        png.write_bytes(b"\x89PNG\r\n\x1a\n")
+        self.service._last_screenshot = png
+        with self.opener.open(self.base + "/api/screenshot", timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers["Content-Type"], "image/png")
+            self.assertEqual(response.read(), png.read_bytes())
+
+    def test_check_connection_busy_returns_409(self) -> None:
+        self.service.check_result = False
+        status, body = self.request("POST", "/api/check", {})
+        self.assertEqual(status, 409)
+        self.assertEqual(body["code"], "BUSY")
+
+    def test_stop_is_forwarded(self) -> None:
+        status, body = self.request("POST", "/api/stop", {})
+        self.assertEqual(status, 200)
+        self.assertIn(("stop",), self.service.calls)
+
+    def test_apply_refuses_dev_managed_resources(self) -> None:
+        self.service.config = {"resource_root": str(Path(self.temp.name) / "vendor")}
+        status, body = self.request("POST", "/api/updates/apply", {})
+        self.assertEqual(status, 409)
+        self.assertEqual(body["code"], "DEV_MANAGED")
 
     def test_unknown_get_returns_404_with_code(self) -> None:
         status, body = self.request("GET", "/api/nope")
