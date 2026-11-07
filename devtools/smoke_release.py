@@ -79,7 +79,7 @@ def main() -> int:
         raise SystemExit(f"缺少运行时：{python}")
 
     print(f"包：{pkg.name}")
-    proc = subprocess.Popen([str(python), "app.py", "--no-browser"], cwd=pkg)
+    proc = subprocess.Popen([str(python), "app.py"], cwd=pkg)
     port = 0
     try:
         port = wait_port(pkg)

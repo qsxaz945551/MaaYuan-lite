@@ -1,8 +1,8 @@
 # MaaYuan Lite HTTP 契约
 
-> 版本：0.2.0 / API v1
-> 更新：2026-11-02
-> 适用对象：WPF 客户端、任何替代前端。HTML 控制台仍在用旧字段，见第八节迁移计划。
+> 版本：0.3.0 / API v2
+> 更新：2026-11-07
+> 适用对象：WPF 客户端与任何替代前端。网页控制台已退役，线上格式只有 camelCase。
 
 服务只监听 `127.0.0.1`，默认端口 8765；端口被占用时回退随机端口，实际端口写在 `runtime/port.txt`。
 所有请求与响应均为 UTF-8 JSON（`/api/events` 除外）。
@@ -26,21 +26,20 @@
 
 | 方法 | 路径 | 用途 | 稳定性 |
 |---|---|---|---|
-| GET | `/` | HTML 控制台（WPF 上线后移除） | 临时 |
 | GET | `/api/state?since=` | 状态 + 增量日志 | 稳定 |
 | GET | `/api/events` | SSE：状态与日志推送 | 新增（v0.2） |
 | GET | `/api/plan?training=&dungeon=` | 生成日常计划（不执行） | 稳定 |
-| GET | `/api/settings` | 启停动作与上次选择 | 字段待改名 |
-| GET | `/api/task-options?scope=` | 任务选项树 | 字段待改名 |
-| GET | `/api/meta` | 版本与枚举 | 新增（v0.2） |
+| GET | `/api/settings` | 启停动作与上次选择 | 稳定（camelCase） |
+| GET | `/api/task-options?scope=` | 任务选项树 | 稳定 |
+| GET | `/api/meta` | 版本与 pid | 新增（v0.2） |
 | GET | `/api/health` | 环境自检摘要 | 新增（v0.2） |
 | GET | `/api/screenshot` | 最近一帧 PNG | 稳定 |
 | POST | `/api/start` | 开始日常 | 稳定 |
 | POST | `/api/stop` | 停止 | 稳定 |
 | POST | `/api/check` | 连接检查 | 稳定 |
 | POST | `/api/run-task` | 单独运行任务 | 稳定 |
-| POST | `/api/settings` | 保存启停动作 | 字段待改名 |
-| POST | `/api/task-options` | 修改选项 | 字段待改名 |
+| POST | `/api/settings` | 保存启停动作 | 稳定（camelCase） |
+| POST | `/api/task-options` | 修改选项 | 稳定 |
 | POST | `/api/exit` | 退出服务 | 稳定 |
 
 ---
@@ -113,8 +112,8 @@ data: {"status":"running","currentTask":"🏯 据点日常","summary":{},"logSeq
 
 ### `GET /api/settings`
 
-`{startup_action, shutdown_action, last_training, last_dungeon}` —— **snake_case，待迁移**。
-枚举值见 `/api/meta` 的 `startupActions` / `shutdownActions`。
+`{startupAction, shutdownAction, lastTraining, lastDungeon, autoUpdateResources}` —— camelCase。
+枚举值由客户端维护（`StartupOptions` / `ShutdownOptions`），服务端只按白名单校验。
 
 ### `GET /api/task-options?scope=daily|all`
 
@@ -136,8 +135,7 @@ data: {"status":"running","currentTask":"🏯 据点日常","summary":{},"logSeq
 
 ### `GET /api/meta`
 
-`{version, apiVersion, runStates[], taskStates[], startupActions[], shutdownActions[], trainingTypes[]}`。
-客户端不应硬编码枚举，启动时读一次缓存。
+`{version, apiVersion, pid}`。枚举不再下发：客户端本来也不消费，删掉以免和真实状态漂移。
 
 ### `GET /api/health`
 
@@ -174,7 +172,7 @@ data: {"status":"running","currentTask":"🏯 据点日常","summary":{},"logSeq
 {"ok": false, "error": "中文描述，可直接展示", "code": "TASK_UNKNOWN"}
 ```
 
-`error` 保留文本形式（HTML 控制台仍在读），`code` 是稳定标识，客户端按它分支。
+`error` 是给人看的文本，`code` 是稳定标识，客户端按它分支。
 
 | code | HTTP | 触发 |
 |---|---|---|
@@ -203,16 +201,12 @@ data: {"status":"running","currentTask":"🏯 据点日常","summary":{},"logSeq
 
 **线上格式一律 camelCase**，Python 内部仍用 snake_case，转换只在序列化层发生。
 
-现状（2026-11-02）：
+现状（2026-11-07，API v2）：
 
 | 端点 | 状态 |
 |---|---|
-| `/api/state`、`/api/meta`、`/api/health`、`/api/updates` | 本来就是 camelCase |
-| `/api/settings` | **双写**：同时返回 `startupAction` 与 `startup_action` |
+| `/api/state`、`/api/meta`、`/api/health`、`/api/updates` | camelCase |
+| `/api/settings` | camelCase（0.3.0 起不再返回 snake_case 副本） |
 | `/api/plan`、`/api/task-options` | 字段名本身无下划线，无需转换 |
 
-`/api/settings` 双写的原因：HTML 控制台（`start-lite.bat --legacy`）仍读旧字段。WPF 已切到 camelCase。
-
-收尾条件：确认不再需要 HTML 控制台后，删除 `lite/settings.py` 里 `to_wire` 的旧字段，`apiVersion` 升到 2。
-
-写入侧已经两种都收（`from_wire`），新代码只写 camelCase。
+写入侧仍接受两种拼写（`from_wire`），未知键原样透传，方便脚本调用。

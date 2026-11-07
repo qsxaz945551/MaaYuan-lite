@@ -1,9 +1,9 @@
 # MaaYuan Lite 项目报告
 
-> 版本：2026-11-02 23:00  
-> 定位：**后续开发以本报告为准**。它取代 `开发清单-v2.md` 成为主文档；  
+> 版本：0.3.0（2026-11-07 22:05）  
+> 定位：**后续开发以本报告为准**，主文档；
 > `LITE.md`（功能现状）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、  
-> `代码结构自查报告.md`（技术债明细）作为配套文档保留。
+> 技术债与资产审查见 `docs/AUDIT-20261107-v2.md`（2026-11-07，含清理执行记录）。
 
 ---
 
@@ -24,7 +24,7 @@
 | 不做             | 原因                         |
 | -------------- | -------------------------- |
 | 图形安装器          | 只交付便携目录 + zip              |
-| 重构 HTML 控制台    | 已被 WPF 取代，只作 `--legacy` 保留 |
+| 重构 HTML 控制台    | 2026-11-07 已删除（`lite/ui/`，1028 行），只保留 WPF       |
 | OCR 量化/蒸馏/换小模型 | 上游红线，识别准确率优先               |
 | 自动战斗、录制作业      | 上游能力，Lite 不接               |
 | 多模拟器/多游戏适配     | 只支持雷电 14 + 如鸢简中            |
@@ -194,8 +194,7 @@ V1/V2/V4/V5/V7 已过（见第二节）。V4 专门验证了中文 + 空格路�
 #### 命名
 
 线上格式一律 camelCase，Python 内部仍 snake_case，转换只发生在序列化层。  
-`/api/settings` 目前**双写**（`startupAction` + `startup_action`），因为 `--legacy` 的 HTML 控制台还读旧字段。  
-收尾条件：确认不再需要 HTML 后删掉旧字段，`apiVersion` 升到 2。
+`/api/settings` 自 0.3.0 起只返回 camelCase（网页控制台退役，双写已删），`apiVersion` 升到 2。
 
 #### 进程与端口
 
@@ -236,12 +235,12 @@ desktop/MaaYuanLite.Desktop/    18 个文件
 | -------------- | ------------------------------------------------------------------------------------------------------ |
 | **W0 发布形态**    | framework-dependent，`net10.0-windows`。理由：.NET 10 是 LTS（到 2028-11），.NET 8 在 2026-11-10 EOL、.NET 9 已 EOL |
 | **W1 布局**      | 状态条 / 控制条 / 三栏（320 · 420 · 自适应），1360×860，最小 1080×700；深色主题按 WebView 控制台配色 1:1 还原（`#0D1117` 底 + `#D9B36C` 强调） |
-| **W2 进程管理**    | 查根目录 → 复用已运行实例（读 `port.txt`）→ 否则起 `python app.py --no-browser --parent-pid <pid>`                      |
+| **W2 进程管理**    | 查根目录 → 复用已运行实例（读 `port.txt`）→ 否则起 `python app.py --parent-pid <pid>`                      |
 | **W3 状态与日志**   | 空闲 2 秒、运行中 1 秒轮询 `/api/state`；首屏 `since=0` 拉取已有日志，增量追加，上限 800 行；`warn`/`error` 着色                    |
 | **W4 选项控件**    | 下拉（>2 项）/ 开关（=2 项，`Yes` 固定为开）/ 文本框，改动即时写回                                                              |
 | **W5 启停动作**    | 控制条两个下拉，读写 `/api/settings`                                                                             |
 | **W6 首次自检**    | 启动调 `/api/health`，只有 fail 才弹窗；模拟器未开只是警告                                                                |
-| **W7 替换 Edge** | `start-lite.bat` 默认启 WPF，`--legacy` 才走浏览器；删除 `find_edge`/窗口枚举，`app.py` 从 770 行降到 730 行                 |
+| **W7 替换 Edge** | 只保留 WPF；0.3.0 起连 `--legacy` 浏览器退路、`open_ui`、根路由与 `running_instance` 一并删除（`app.py` 749 行） |
 | **W8 任务列表**    | 「今日日常 / 其他任务」两个 Tab 带计数；每行 = 序号（其他任务为勾选框）+ 名称 + 选项摘要 + 状态徽章（完成/失败/超时/跳过/限时）；选中行金边高亮 |
 | **W9 单独执行**    | 其他任务勾选后 `POST /api/run-task`，按列表顺序批量执行；按钮文案随勾选数变为「开始任务（N）」                                              |
 | **W10 历练类型**   | 选中「历练」时面板顶部出现修为/铜钱/经验三按钮，切换即重取 `/api/plan?training=` 并写回 `lastTraining`                                |
@@ -257,7 +256,7 @@ desktop/MaaYuanLite.Desktop/    18 个文件
 | **W16 未开放标注** | 地宫入口探测失败时服务端记 `note: 本期未开放`，该行副标题以琥珀色显示（徽章「跳过」）；底栏显示 `v<版本>`（取自 `/api/meta`），避免分不清启动的是哪个包 |
 | 更新徽章           | 三态：有更新（黄）/ 正在下载（蓝，带百分比与 MB）/ 待生效（点击可重启）                                                                |
 
-**顺手修的真 bug**：WPF 用 `--no-browser` 启动，而「启动时自动运行日常」写在该分支内 —— 这个设置从来没生效过。已移出，实测 `--no-browser` 下能自动开跑。
+**顺手修的真 bug**：后端曾用 `--no-browser` 启动，而「启动时自动运行日常」恰好写在该分支内 —— 这个设置从来没生效过。已移出；0.3.0 退役网页控制台后连该参数一起删除。
 
 **2026-11-05 深夜修的大 bug：WPF 的所有 POST 请求体都是空的。**
 `LiteService.PostAsync` 用 `JsonContent.Create(body)`，它要等到写请求流时才序列化，`HttpClient` 因此拿不到长度、退化成 `Transfer-Encoding: chunked`；
@@ -402,7 +401,7 @@ MaaYuan-Lite/
 
 ```
 WPF 启动
- → LiteService 找根目录 → 复用或启动 python app.py --no-browser --parent-pid
+ → LiteService 找根目录 → 复用或启动 python app.py --parent-pid
  → app.py: chdir(ROOT) → 加载配置 → 自动切换 assets.next（若有）
           → 按 mtime 重建 interface → 清理孤儿 agent → 日志轮转
           → 起 HTTP(127.0.0.1:8765) → 写 port.txt → 后台检查更新
@@ -443,7 +442,7 @@ WPF 启动
 | 3 | 只删 `pandas` + `pip`，`cv2` 保留 | pandas 全仓库无引用；cv2 是 agent 图像识别的硬依赖 | −88 MB |
 | 4 | adb 不内置 | 模拟器目录里有，省 15 MB；配探测链 + 配置覆盖 | 模拟器升级换路径时要能自愈 |
 | 5 | WPF 用 framework-dependent + .NET 10 | .NET 10 是 LTS（到 2028-11）；.NET 8 在 2026-11-10 EOL、.NET 9 已 EOL | 省 80 MB；目标机需 Desktop Runtime |
-| 6 | 保留 HTML 控制台作 `--legacy` | WPF 出问题时还有退路，成本近乎为零 | 需维持 camelCase 双写 |
+| 6 | ~~保留 HTML 控制台作 `--legacy`~~ | 2026-11-07 用户决定退役：发布包本就没有入口，只留下双写与两套 UI 的维护成本 | 已删除，`apiVersion` 升 2 |
 | 7 | 资源默认全自动更新，框架只提示 | 资源跟游戏版本走，晚一天可能跑不动；框架静默升级会把"昨天能跑"变不确定 | 见 M6 |
 | 8 | 所有更新先落 `*.next/`，过门禁才切换 | 校验不过、加载失败自动回滚，不会"更新完打不开" | `assets.prev/` 保留一份 |
 | 9 | 原版目录改名保留，V3 连跑 3 天再删 | 有退路 | 磁盘多占 985 MB |
@@ -559,7 +558,7 @@ python devtools/run_tests.py      157 项，约 8 秒
 # 开发
 python devtools/run_tests.py                 # 157 项测试
 python app.py --selftest                     # 10 项环境自检
-python app.py --no-browser --port 8790       # 只起服务
+python app.py --port 8790                    # 只起服务
 
 # 构建
 python devtools/build_release.py             # 产出 dist/MaaYuan-Lite-<version>/
@@ -602,4 +601,4 @@ M7 之前不建议加新功能：调度层还有两处半成品，现在加功�
 
 ---
 
-*配套文档：`LITE.md`（功能与实测数据）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、`代码结构自查报告.md`（技术债明细）。*
+*配套文档：`LITE.md`（功能与实测数据）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、`docs/AUDIT-20261107-v2.md`（技术债与资产审查）。*

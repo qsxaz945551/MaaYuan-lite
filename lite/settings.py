@@ -25,26 +25,29 @@ DEFAULTS: dict[str, Any] = {
     "last_training": "修为",
     "last_dungeon": False,
     "auto_update_resources": True,
-    "auto_update_framework": False,
 }
 
-# The wire format is camelCase; storage stays snake_case so the JSON file and
-# Python call sites keep reading naturally. Both spellings are accepted on the
-# way in until the HTML console is retired.
+# The wire format is camelCase (the WPF client); storage stays snake_case so the
+# JSON file and Python call sites keep reading naturally.
 CAMEL: dict[str, str] = {
     "startup_action": "startupAction",
     "shutdown_action": "shutdownAction",
     "last_training": "lastTraining",
     "last_dungeon": "lastDungeon",
     "auto_update_resources": "autoUpdateResources",
-    "auto_update_framework": "autoUpdateFramework",
 }
 SNAKE: dict[str, str] = {value: key for key, value in CAMEL.items()}
 
 
 def to_wire(data: dict[str, Any]) -> dict[str, Any]:
-    """Response shape: camelCase keys plus the legacy snake_case duplicates."""
+    """Response shape: camelCase only.
+
+    The snake_case duplicates existed solely for the retired HTML console; the
+    WPF client reads camelCase, so keeping both spellings only invited drift.
+    """
     payload = dict(data)
+    for snake in CAMEL:
+        payload.pop(snake, None)
     for snake, camel in CAMEL.items():
         if snake in data:
             payload[camel] = data[snake]
@@ -124,7 +127,7 @@ def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
                 current[key] = str(value)
             elif key == "last_dungeon":
                 current[key] = bool(value)
-            elif key in ("auto_update_resources", "auto_update_framework"):
+            elif key == "auto_update_resources":
                 current[key] = bool(value)
         config["automation"] = current
         _write_json_atomic(CONFIG_FILE, config)

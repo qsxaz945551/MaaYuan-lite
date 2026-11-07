@@ -9,17 +9,16 @@ MaaYuan Lite 的代码分成三类：**自研**（本仓库维护）、**上游*
 
 | 路径 | 说明 | 规模 |
 |---|---|---|
-| `app.py` | HTTP 服务、进程守卫、启动编排 | 727 行 |
-| `lite/*.py` | 调度、会话、选项、更新、自检（21 个模块） | 4230 行 |
-| `lite/ui/index.html` | 旧浏览器控制台（`--legacy` 才用，WPF 上线后退役） | 926 行 |
-| `lite/tests/` | 16 个测试文件 | 1433 行，83 项用例 |
+| `app.py` | HTTP 服务、进程守卫、启动编排 | 749 行 |
+| `lite/*.py` | 调度、会话、选项、更新、自检（24 个模块） | 5492 行 |
+| `lite/tests/` | 32 个测试文件 | 254 项用例 |
 | `lite/*.json` | 日常链、选项快照、scope、运行配置、来源清单 | — |
-| `desktop/MaaYuanLite.Desktop/` | WPF 客户端（.cs + .xaml） | 17 个文件，约 1200 行 |
-| `start-lite.bat` | 启动器（**GBK + CRLF**，默认拉起 WPF） | 40 行 |
-| `devtools/` | 开发期工具（同步、自检、打包、测量） | 13 个脚本 |
+| `desktop/MaaYuanLite.Desktop/` | WPF 客户端（6 个 .cs + 2 个 .xaml） | 2142 行 C# |
+| `start-lite.bat` | 启动器（**GBK + CRLF**，只拉起 WPF） | 20 行 |
+| `devtools/` | 开发期工具（同步、自检、打包、测量、验收） | 22 个脚本 |
 | `docs/api-contract.md` | 字段级 API 契约与错误码表 | — |
 | `NOTICE.md` | 第三方声明 | — |
-| `LITE.md` / `MANIFEST.md` / `开发清单-v2.md` | 项目文档 | — |
+| `LITE.md` / `MANIFEST.md` / `PROJECT-REPORT.md` | 项目文档 | — |
 
 ## 上游（运行时可被更新替换）
 
@@ -66,7 +65,6 @@ runtime_env/
 | `runtime/selftest.json` | 最近一次自检结果 |
 | `runtime/update-check.json` | 更新检查缓存（6 小时） |
 | `assets.next/` `assets.prev/` | 资源切换的暂存与备份，切换瞬间存在 |
-| `on_error/` | **历史遗留**，旧版本写在项目根；新版本已改到 `runtime/debug/on_error/` |
 
 ## 资源更新（两条路径）
 

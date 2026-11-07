@@ -729,6 +729,7 @@ class LiteSession:
             cancelled = False
             agent_died = False
             stalled = False
+            probe_warned = False
             next_agent_check = time.monotonic() + 2.0
             while not job.done:
                 if should_stop is not None and should_stop():
@@ -747,8 +748,14 @@ class LiteSession:
                     alive = True
                     try:
                         alive = bool(agent_check())
-                    except Exception:
-                        alive = True
+                    except Exception as error:
+                        # 探针本身坏了，不等于 Agent 还活着。维持旧行为（继续跑）
+                        # 但要说出来，否则 IPC 全断时只会看到一个永远不结束的任务。
+                        if not probe_warned:
+                            probe_warned = True
+                            self._log(
+                                f"Agent 存活探测失败，本次按存活处理：{error}", "warn"
+                            )
                     if not alive:
                         # Custom actions cannot run without the agent; stop the
                         # task so the caller can restart the agent and move on.

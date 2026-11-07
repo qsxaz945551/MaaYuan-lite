@@ -25,7 +25,7 @@ def main() -> int:
     if not PY.is_file():
         raise SystemExit(f"运行时不存在：{PY}")
     proc = subprocess.Popen(
-        [str(PY), "app.py", "--no-browser"],
+        [str(PY), "app.py"],
         cwd=str(PKG),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

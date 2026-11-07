@@ -13,7 +13,6 @@
     "shutdown_action": "none",
     "last_training": "修为",
     "last_dungeon": false,
-    "auto_update_resources": true,
-    "auto_update_framework": false
+    "auto_update_resources": true
   }
 }

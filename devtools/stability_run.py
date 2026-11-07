@@ -235,7 +235,7 @@ def spawn_service(port: int) -> subprocess.Popen:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handle = open(log_path, "ab")
     process = subprocess.Popen(
-        [sys.executable, "app.py", "--no-browser", "--port", str(port)],
+        [sys.executable, "app.py", "--port", str(port)],
         cwd=str(ROOT),
         stdout=handle,
         stderr=subprocess.STDOUT,

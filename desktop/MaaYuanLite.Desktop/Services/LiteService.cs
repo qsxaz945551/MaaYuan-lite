@@ -48,7 +48,7 @@ public sealed class LiteService : IDisposable
             return false;
         }
 
-        var info = new ProcessStartInfo(python, $"app.py --no-browser --parent-pid {Environment.ProcessId}")
+        var info = new ProcessStartInfo(python, $"app.py --parent-pid {Environment.ProcessId}")
         {
             WorkingDirectory = Root,
             UseShellExecute = false,

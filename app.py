@@ -9,25 +9,12 @@ import subprocess
 import sys
 import threading
 import time
-import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
-RUN_STATES = (
-    "idle",
-    "starting",
-    "running",
-    "checking",
-    "completed",
-    "completed_with_errors",
-    "cancelled",
-    "error",
-    "interrupted",
-)
-TASK_STATES = ("pending", "running", "succeeded", "failed", "timed_out", "skipped", "cancelled")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -35,8 +22,6 @@ from lite.daily_plan import build_plan, load_profile
 from lite.http_body import read_body
 from lite.run_service import RunService
 from lite.settings import (
-    SHUTDOWN_ACTIONS,
-    STARTUP_ACTIONS,
     from_wire,
     load_settings,
     save_settings,
@@ -48,7 +33,6 @@ APP_VERSION = VERSION
 from lite.task_options_service import (
     DEFAULT_INPUTS,
     DEFAULT_SELECTION,
-    OptionError,
     apply_change,
     describe_tasks,
     load_inputs,
@@ -57,7 +41,6 @@ from lite.task_options_service import (
 )
 
 
-UI_FILE = ROOT / "lite" / "ui" / "index.html"
 CONFIG_FILE = ROOT / "lite" / "runtime-config.json"
 INTERFACE_FILE = ROOT / "build" / "generated" / "interface.json"
 OPTION_LOCK = threading.Lock()
@@ -248,7 +231,7 @@ def _auto_start(service: RunService, settings: dict, delay: float) -> None:
 
 
 def _close_app_window(title: str = "MaaYuan Lite") -> None:
-    """Ask the Edge app window to close (used by the "结束后关闭MAA" action)."""
+    """Ask the WPF window to close (used by the "结束后关闭MAA" action)."""
     import ctypes
     import ctypes.wintypes as wt
 
@@ -269,15 +252,6 @@ def _close_app_window(title: str = "MaaYuan Lite") -> None:
     user32.EnumWindows(entry, 0)
     for hwnd in handles:
         user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
-
-
-def open_ui(url: str) -> None:
-    """Open the legacy web console in the default browser.
-
-    Only ``start-lite.bat --legacy`` reaches this: the WPF shell owns its own
-    window, so there is no Edge app mode or window sizing to manage here.
-    """
-    webbrowser.open(url)
 
 
 class LiteHTTPServer(ThreadingHTTPServer):
@@ -361,15 +335,6 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
 
         def do_GET(self):
             parsed = urlparse(self.path)
-            if parsed.path == "/":
-                body = UI_FILE.read_bytes()
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(body)
-                return
             if parsed.path == "/api/state":
                 query = parse_qs(parsed.query)
                 raw_since = query.get("since", ["0"])[0]
@@ -430,11 +395,6 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
                     {
                         "version": APP_VERSION,
                         "apiVersion": API_VERSION,
-                        "runStates": list(RUN_STATES),
-                        "taskStates": list(TASK_STATES),
-                        "startupActions": list(STARTUP_ACTIONS),
-                        "shutdownActions": list(SHUTDOWN_ACTIONS),
-                        "trainingTypes": ["修为", "铜钱", "经验"],
                         # 稳定性脚本（devtools/stability_run.py）用它给自己的
                         # 进程采句柄与内存，省掉从 netstat 反查 PID 的脆弱路径。
                         "pid": os.getpid(),
@@ -665,21 +625,8 @@ def make_handler(service: RunService, server_ref: list[LiteHTTPServer]):
     return Handler
 
 
-def running_instance(host: str, port: int) -> bool:
-    """True when a Lite console already answers on this port."""
-    import urllib.request
-
-    try:
-        with urllib.request.urlopen(f"http://{host}:{port}/api/state", timeout=1.5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return False
-    return isinstance(data, dict) and "logSeq" in data and "status" in data
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--port", type=int)
     parser.add_argument("--parent-pid", type=int, help="父进程退出时自动关闭")
     parser.add_argument("--selftest", action="store_true", help="检查运行环境后退出")
@@ -733,10 +680,6 @@ def main() -> int:
 
     port = args.port or int(config.get("port", 8765))
     host = config.get("host", "127.0.0.1")
-    if not args.no_browser and running_instance(host, port):
-        print("控制台已在运行，直接打开窗口。", flush=True)
-        open_ui(f"http://{host}:{port}")
-        return 0
     service = RunService(ROOT, config)
     if staged_note is not None:
         # 资源在启动前就换掉了，把这行补进日志，界面第一次轮询就能看到。
@@ -750,7 +693,7 @@ def main() -> int:
     server_ref.append(server)
     actual_port = server.server_address[1]
     url = f"http://{config.get('host', '127.0.0.1')}:{actual_port}"
-    print(f"MaaYuan Lite 控制台: {url}", flush=True)
+    print(f"MaaYuan Lite 服务: {url}", flush=True)
 
     # The shell reads this instead of parsing stdout; it also makes the real
     # port visible when 8765 was busy and the server fell back to a random one.
@@ -783,11 +726,7 @@ def main() -> int:
         log=service.note,
     )
 
-    if not args.no_browser:
-        threading.Timer(0.6, lambda: open_ui(url)).start()
-
-    # WPF starts the service with --no-browser, so auto-run must not live inside
-    # that branch: "启动时自动运行日常" is an automation setting, not a UI one.
+    # 「启动时自动运行日常」是自动化设置，和界面形态无关。
     if startup in ("auto_run", "auto_run_minimized"):
         delay = 6.0 if startup == "auto_run_minimized" else 4.0
         threading.Thread(

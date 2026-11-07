@@ -76,15 +76,16 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(saved["last_training"], "铜钱")
         self.assertTrue(saved["last_dungeon"])
 
-    def test_wire_format_has_both_spellings(self):
+    def test_wire_format_is_camel_only(self):
         values = settings.load_settings()
         wire = settings.to_wire(values)
         self.assertEqual(wire["startupAction"], values["startup_action"])
         self.assertEqual(wire["shutdownAction"], values["shutdown_action"])
         self.assertEqual(wire["lastTraining"], values["last_training"])
         self.assertEqual(wire["autoUpdateResources"], values["auto_update_resources"])
-        # legacy keys stay until the HTML console is retired
-        self.assertIn("startup_action", wire)
+        # 网页控制台退役后不再导出 snake_case 副本，避免两种拼写漂移
+        self.assertNotIn("startup_action", wire)
+        self.assertNotIn("auto_update_framework", wire)
 
     def test_from_wire_accepts_camel(self):
         normalized = settings.from_wire({"startupAction": "auto_run", "lastDungeon": True})
