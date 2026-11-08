@@ -1,0 +1,52 @@
+{
+  "version": "MaaYuan-Lite-0.3.4",
+  "status": "completed",
+  "elapsed": 547.3,
+  "summary": {
+    "succeeded": 7,
+    "failed": 0,
+    "skipped": 1
+  },
+  "tasks": [
+    {
+      "name": "🚀 启动游戏",
+      "status": "succeeded",
+      "duration": 77.6
+    },
+    {
+      "name": "💰 领月卡福利",
+      "status": "succeeded",
+      "duration": 14.8
+    },
+    {
+      "name": "🏯 据点日常",
+      "status": "succeeded",
+      "duration": 49.6
+    },
+    {
+      "name": "🔮 观星",
+      "status": "succeeded",
+      "duration": 28.0
+    },
+    {
+      "name": "📜 鸢报四连 - 日常专用",
+      "status": "skipped_no_resource",
+      "duration": 120.8
+    },
+    {
+      "name": "💎 修为历练",
+      "status": "succeeded",
+      "duration": 28.0
+    },
+    {
+      "name": "🗡 白鹄扫荡",
+      "status": "succeeded",
+      "duration": 28.0
+    },
+    {
+      "name": "🔶 日常收尾",
+      "status": "succeeded",
+      "duration": 191.8
+    }
+  ]
+}
