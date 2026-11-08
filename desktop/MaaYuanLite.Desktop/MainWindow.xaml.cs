@@ -1273,7 +1273,18 @@ public partial class MainWindow : Window
         StartButton.ToolTip = count > 0
             ? $"今日日常 {dailyCount} 项 · 其他任务 {libraryCount} 项"
             : "先勾选要执行的任务";
-        DailySelectAll.Visibility = _scope == "library" ? Visibility.Collapsed : Visibility.Visible;
+        // 表头高度固定：切到「其他任务」时不隐藏，只置灰，避免整栏上下跳。
+        DailySelectAll.Visibility = Visibility.Visible;
+        DailySelectAll.IsEnabled = _scope != "library";
+        if (_scope == "library")
+        {
+            // 其他任务页没有“全选”的语义；清掉勾选，避免灰框里还带着勾让人误会。
+            // 切回日常时 RenderTasks → SyncSelectAll 会按真实状态恢复。
+            DailySelectAll.IsChecked = false;
+        }
+        DailySelectAll.ToolTip = _scope == "library"
+            ? "其他任务不支持全选，请逐项勾选"
+            : "勾选 / 取消今日日常的全部任务（仅影响当前列表里显示的任务）";
     }
 
     private void SyncSelectAll()

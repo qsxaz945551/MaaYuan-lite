@@ -52,6 +52,32 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _prune_options(
+    interface: dict[str, Any], kept_tasks: list[dict[str, Any]]
+) -> list[str]:
+    """删掉只被已移除任务引用的选项组，避免生成物里留下孤儿配置。
+
+    选项可以嵌套引用（case 里的 ``option``），所以从保留任务出发做一次可达性遍历。
+    """
+    options = interface.get("option")
+    if not isinstance(options, dict):
+        return []
+    reachable: set[str] = set()
+    stack: list[str] = []
+    for task in kept_tasks:
+        stack.extend(task.get("option") or [])
+    while stack:
+        name = stack.pop()
+        if name in reachable or name not in options:
+            continue
+        reachable.add(name)
+        for case in options[name].get("cases") or []:
+            stack.extend(case.get("option") or [])
+    pruned = [name for name in options if name not in reachable]
+    interface["option"] = {name: value for name, value in options.items() if name in reachable}
+    return pruned
+
+
 def apply_scope(
     interface: dict[str, Any],
     scope: dict[str, Any],
@@ -98,6 +124,7 @@ def apply_scope(
         )
 
     lite_interface = dict(interface)
+    pruned_options = _prune_options(lite_interface, kept_tasks)
     lite_interface["name"] = "MaaYuan Lite"
     lite_interface["custom_title"] = "Maa鸢 Lite"
     lite_interface["version"] = VERSION
@@ -120,6 +147,8 @@ def apply_scope(
             for task in removed_tasks
         ],
         "kept_tasks": [task.get("name") for task in kept_tasks],
+        "pruned_option_count": len(pruned_options),
+        "pruned_options": pruned_options[:20],
         "ui_modules_removed": scope.get("ui", {}).get("remove", []),
         "ocr_model_quantization": scope.get("constraints", {}).get(
             "ocr_model_quantization", "unknown"

@@ -28,12 +28,21 @@ class ScopeTest(unittest.TestCase):
             self.assertNotIn(item["name"], names)
         self.assertEqual(report["source_task_count"] - report["excluded_task_count"], len(names))
 
-    def test_confirmed_war_chariot_override(self):
+    def test_removed_tasks_stay_out(self):
+        """2026-11-08 用户要求把这两项从其他任务里彻底删掉。"""
+        lite, _report = apply_scope(self.interface, self.scope, self.overrides)
+        names = {task["name"] for task in lite["task"]}
+        self.assertNotIn("🏰 邺城之战V3", names)
+        self.assertNotIn("💤 关闭游戏", names)
+
+    def test_orphan_options_are_pruned(self):
+        """任务删掉后，只被它引用的选项组也不该留在生成物里。"""
         lite, report = apply_scope(self.interface, self.scope, self.overrides)
-        task = next(t for t in lite["task"] if t["name"] == "🏰 邺城之战V3")
-        target = task["pipeline_override"]["邺城事件-确认选择战车"]["action"]["param"]["target"]
-        self.assertEqual(target, [357, 1181, 3, 3])
-        self.assertEqual(report["pipeline_overrides"][0]["task"], "🏰 邺城之战V3")
+        self.assertNotIn("邺城-刷哪层", lite["option"])
+        self.assertNotIn("选择要购买的商品", lite["option"])
+        self.assertGreater(report["pruned_option_count"], 0)
+        # 保留任务的选项必须还在
+        self.assertIn("修为历练级别", lite["option"])
 
     def test_ocr_quantization_is_forbidden(self):
         self.assertEqual(

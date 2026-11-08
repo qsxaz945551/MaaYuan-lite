@@ -12,7 +12,6 @@
     "🔮 观星": 15,
     "🗡 白鹄扫荡": 15,
     "🔶 日常收尾": 15,
-    "🏰 邺城之战V3": 13,
     "💎 修为历练": 12,
     "🗡 地宫助手": 11,
     "💲 铜钱历练": 3
@@ -143,15 +142,7 @@
       "name": "🔶 日常收尾"
     }
   ],
-  "standalone_profiles": [
-    {
-      "name": "邺城活动",
-      "tasks": [
-        "🏰 邺城之战V3"
-      ],
-      "note": "通常单独启动，不并入日常一条链。"
-    }
-  ],
+  "standalone_profiles": [],
   "hidden_in_library": [
     "💎 修为历练",
     "💲 铜钱历练",
@@ -163,8 +154,7 @@
   ],
   "pinned_in_library": [
     "🔄 6-24/7-15 刷到体力耗尽",
-    "🔄 鸢报四合一",
-    "🏰 邺城之战V3"
+    "🔄 鸢报四合一"
   ],
   "status": "defaults_confirmed_except_activity_end_date"
 }

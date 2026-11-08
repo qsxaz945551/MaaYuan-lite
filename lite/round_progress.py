@@ -5,7 +5,6 @@ per completed round instead.  A round is marked by a pipeline node that the
 upstream pipeline already reaches once per iteration:
 
 * 6-24 farming  -> 战斗结束 (one battle)
-* 邺城之战       -> 邺城事件-结算 (one run settled)
 * 鸢报四合一     -> the per-category end node (four categories)
 
 Add an entry here if another loop task should report progress; the runner
@@ -18,9 +17,6 @@ from __future__ import annotations
 ROUND_MARKERS: dict[str, dict[str, str]] = {
     "start_6-24": {
         "战斗结束": "战斗",
-    },
-    "邺城刷取": {
-        "邺城事件-结算": "攻取结算",
     },
     "鸟食大礼包启动": {
         "end_当前没有突发情报": "突发情况",

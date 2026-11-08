@@ -87,7 +87,7 @@ STAMINA_DIALOG_CLOSE = (577, 259)
 STALL_SECONDS = 150.0
 
 # The single source of truth for "how long may this task run".
-# None means no limit (邺城 runs until stopped by hand).
+# None means no limit (for tasks that run until stopped by hand).
 DEFAULT_TASK_TIMEOUT = 1800
 DEFAULT_TIMEOUTS = {
     "🚀 启动游戏": 300,
@@ -102,7 +102,6 @@ DEFAULT_TIMEOUTS = {
     "🔄 鸢报四合一": 1800,
     "📜 鸢报四连 - 日常专用": 1800,
     "🔶 日常收尾": 1800,
-    "🏰 邺城之战V3": None,  # 无限刷取，无时间上限，靠手动停止
 }
 
 

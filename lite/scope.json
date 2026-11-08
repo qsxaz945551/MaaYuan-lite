@@ -56,6 +56,14 @@
         "name": "✨ 自动抄作业V3",
         "reason": "依赖已移除的自动战斗/作业模块",
         "needs_confirmation": true
+      },
+      {
+        "name": "🏰 邺城之战V3",
+        "reason": "用户明确不使用"
+      },
+      {
+        "name": "💤 关闭游戏",
+        "reason": "用户明确不使用"
       }
     ],
     "keep": "除 exclude 外的所有任务；最终任务默认勾选顺序在首次运行前确认"

@@ -342,7 +342,7 @@ class RunServiceTest(unittest.TestCase):
             before = service.snapshot()
             self.assertEqual(before["summary"], {"succeeded": 8, "failed": 0, "skipped": 0})
 
-            target = "🏰 邺城之战V3"
+            target = "🔮 观星"
             self.assertTrue(service.run_single(target))
             service._thread.join(30)
 
@@ -356,7 +356,7 @@ class RunServiceTest(unittest.TestCase):
 
     def test_sequence_runs_tasks_in_order(self):
         service = RunService(self.root, self.config)
-        names = ["🏰 邺城之战V3", "🎲 爱乐之村"]
+        names = ["🎲 爱乐之村", "🔮 观星"]
         with mock.patch("lite.run_service.LiteSession", FakeSession):
             self.assertTrue(service.run_sequence(names))
             service._thread.join(30)

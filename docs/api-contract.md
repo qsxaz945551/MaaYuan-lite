@@ -72,7 +72,7 @@
 | `status` | string | 枚举见第六节 |
 | `duration` | float | 秒 |
 | `attempts` | int | 尝试次数 |
-| `timeout` | int\|null | 秒；`null` 表示无上限（邺城） |
+| `timeout` | int\|null | 秒；`null` 表示不设上限（长时间循环任务） |
 
 客户端合并规则：`runId` 变化 → 清空本地状态；`logSeq` 小于本地 → 重新全量拉取。
 
