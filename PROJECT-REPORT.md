@@ -495,9 +495,11 @@ WPF 启动
 | `agent/` | 6.9 MB |
 | 代码 + WPF + interface | 约 1 MB |
 | **发布包合计** | **343.3 MB / 3001 个文件** |
-| 原版安装目录（v2.3.1-beta.3） | **740 MB / 8302 个文件** |
+| 原版安装目录（v2.3.1-beta.3） | **726.6 MB / 8303 个文件** |
 
-原版 740 MB 的构成：`python/` 350 MB + `resource/` 144 MB + `libs/` 138 MB（.NET/Avalonia）+ `runtimes/` 65 MB + `agent/` 8.1 MB。
+原版 726.6 MB 的构成：`python/` 337.8 + `libs/` 137.0（.NET/Avalonia）+ `resource/` 139.8
+（简中 72.0 + 繁中 67.8）+ `runtimes/` 64.9 + `agent/` 7.8 + `debug/`·`logs/` 38.4（运行产物）+ 其余约 1 MB。
+剔除运行产物为 688.2 MB，Lite 等于它的 **49.9%**。
 
 ### 6.2 性能对比（同机空闲态，同一采集器）
 
