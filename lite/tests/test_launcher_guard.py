@@ -68,3 +68,22 @@ class LauncherGuardTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DistLauncherTest(unittest.TestCase):
+    """dist/启动 Lite.bat：版本无关入口，直接拉起 exe，别再多套一层 bat。"""
+
+    def test_starts_exe_directly(self) -> None:
+        text = build_release.DIST_LAUNCHER
+        self.assertIn('start "" /d "%ACTIVE%"', text)
+        self.assertNotIn('call "%ACTIVE%\\start-lite.bat"', text)
+
+    def test_guard_block_is_pure_ascii(self) -> None:
+        lines = build_release.DIST_LAUNCHER.splitlines()
+        block = "\n".join(lines[lines.index(":check_dotnet") :])
+        offenders = [line for line in block.splitlines() if not line.isascii()]
+        self.assertEqual(offenders, [])
+
+    def test_template_is_gbk_encodable(self) -> None:
+        # 文件用 chcp 936，必须是 GBK；写成 UTF-8 会乱码。
+        build_release.DIST_LAUNCHER.encode("gbk")

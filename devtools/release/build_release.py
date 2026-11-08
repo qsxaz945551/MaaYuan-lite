@@ -79,6 +79,9 @@ exit /b 1
 """
 
 
+DIST_LAUNCHER = '@echo off\nchcp 936 >nul\ncd /d "%~dp0"\n\nrem 唯一外部依赖：.NET 10 Desktop Runtime\ncall :check_dotnet\nif errorlevel 1 exit /b 1\n\nrem 版本无关的入口：读 active.txt 决定启动哪个版本。\nrem 切换版本用 devtools\\release_switch.py switch <版本|previous>，不需要重新打包。\n\nset "ACTIVE="\nif exist "active.txt" set /p ACTIVE=<active.txt\nif "%ACTIVE%"=="" goto pick\n\nif not exist "%ACTIVE%\\MaaYuanLite.Desktop.exe" goto pick\necho [INFO] 启动 %ACTIVE%\nrem 直接拉起 exe：包内 start-lite.bat 的检查这里已经做过一遍，\nrem 再 call 一次会让双击到窗口多等约 0.5 秒。\nstart "" /d "%ACTIVE%" "%ACTIVE%\\MaaYuanLite.Desktop.exe" %*\nexit /b 0\n\n:pick\nrem 没有指针或指针失效：取版本号最大的一个，够用且不会卡住用户\nset "PICK="\nfor /f "delims=" %%d in (\'dir /b /ad /o-n "MaaYuan-Lite-*" 2^>nul\') do (\n  if not defined PICK set "PICK=%%d"\n)\nif not defined PICK (\n  echo [ERROR] dist 目录下没有找到发布版本\n  echo         先运行 python devtools\\build_release.py 打包\n  pause\n  exit /b 1\n)\nif not exist "%PICK%\\MaaYuanLite.Desktop.exe" (\n  echo [ERROR] %PICK% 缺少 MaaYuanLite.Desktop.exe，包不完整\n  pause\n  exit /b 1\n)\necho [INFO] 未设置 active.txt，使用 %PICK%\nstart "" /d "%PICK%" "%PICK%\\MaaYuanLite.Desktop.exe" %*\nexit /b 0\n\n:check_dotnet\nrem Locate Microsoft.WindowsDesktop.App 10.x. Keep this block ASCII-only:\nrem cmd.exe misreads batch files that mix chcp 65001 with multi-byte text,\nrem the parse offset drifts and swallows the leading "echo" of a later line.\nrem %ProgramFiles(x86)% is deliberately omitted: its ")" would close the\nrem "for ... in (...)" set early, and a 32-bit dotnet could not run us anyway.\nset "WPF10="\nfor %%r in ("%ProgramFiles%\\dotnet" "%LOCALAPPDATA%\\Microsoft\\dotnet" "%DOTNET_ROOT%") do (\n  if not defined WPF10 if exist "%%~r\\shared\\Microsoft.WindowsDesktop.App" (\n    for /d %%d in ("%%~r\\shared\\Microsoft.WindowsDesktop.App\\10.*") do set "WPF10=%%~nxd"\n  )\n)\nif defined WPF10 exit /b 0\necho.\necho [ERROR] .NET 10 Desktop Runtime not found.\necho         It is the only external component (~55 MB), install it once.\necho         https://dotnet.microsoft.com/download/dotnet/10.0\necho         Pick ".NET Desktop Runtime 10.x" - Windows x64 - then run again.\necho.\npause\nexit /b 1\n'
+
+
 def ignore(directory: str, names: list[str]) -> list[str]:
     return [
         name
@@ -191,6 +194,12 @@ def main() -> int:
     shutil.copy2(ROOT / "build" / "generated" / "scope-report.json", generated / "scope-report.json")
 
     (target / "start-lite.bat").write_text(START_BAT, encoding="utf-8")
+
+    # 版本无关入口。它以前只存在于 dist/ 里且未入库，换台机器重建后就没有了；
+    # 现在每次打包都按模板重写：GBK + CRLF，与 chcp 936 对应。
+    (target.parent / "启动 Lite.bat").write_bytes(
+        DIST_LAUNCHER.replace("\n", "\r\n").encode("gbk")
+    )
 
     total = sum(path.stat().st_size for path in target.rglob("*") if path.is_file())
     files = sum(1 for path in target.rglob("*") if path.is_file())

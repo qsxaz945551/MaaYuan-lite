@@ -125,11 +125,27 @@ def start(
     return {"started": True, "state": state()}
 
 
+def _wait_until_idle(
+    wait_while: Callable[[], bool], limit: float = 3600.0, interval: float = 20.0
+) -> bool:
+    """等到 ``wait_while()`` 返回 False；超过 ``limit`` 秒放弃并返回 False。"""
+    deadline = time.time() + limit
+    while time.time() < deadline:
+        try:
+            if not wait_while():
+                return True
+        except Exception:  # noqa: BLE001 - 判定失败就当空闲，别把更新卡死
+            return True
+        time.sleep(interval)
+    return False
+
+
 def auto_check(
     project_root: Path,
     enabled: bool = True,
     delay: float = 6.0,
     log: Callable[[str, str], None] | None = None,
+    wait_while: Callable[[], bool] | None = None,
 ) -> None:
     """Check upstream in the background and download without asking.
 
@@ -178,6 +194,17 @@ def auto_check(
                 else:
                     say(f"资源已是最新（{resource.get('local') or '未知版本'}）。")
                 return
+            if wait_while is not None and wait_while():
+                # 「启动时自动运行」会让任务和更新检查几乎同时开始。下载本身是隔离的
+                # （只写 assets.next.part），但 58 MB 会和 OCR 抢带宽和 CPU，让人以为
+                # 任务变慢了；等这一轮跑完再下，代价只是晚几分钟生效。
+                say("资源有更新，等本轮任务结束后再后台下载。")
+                if not _wait_until_idle(wait_while):
+                    say("等待任务结束超过 60 分钟，本次跳过资源下载。", "warn")
+                    return
+                if wait_while():  # 刚结束又被用户点起来了
+                    say("任务又开始了，本次跳过资源下载，下次启动再查。", "warn")
+                    return
             say(
                 f"资源有更新：本地 {resource.get('local')} → 上游 {resource.get('remote')}"
                 f"（{resource.get('remoteDate')}），开始后台下载。"

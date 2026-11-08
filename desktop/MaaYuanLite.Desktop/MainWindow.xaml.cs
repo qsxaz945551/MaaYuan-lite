@@ -1589,8 +1589,9 @@ public partial class MainWindow : Window
 
         if (_updateStaged)
         {
+            var running = _busy ? "\n\n注意：当前有任务正在运行，重启会中断这一轮。" : "";
             var restart = MessageBox.Show(
-                details + "\n\n现在就重启 Lite 让它生效吗？",
+                details + running + "\n\n现在就重启 Lite 让它生效吗？",
                 "MaaYuan Lite",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);

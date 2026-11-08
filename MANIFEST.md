@@ -84,6 +84,8 @@ runtime_env/
 3. 校验（pipeline 数量 ≥ 100、主模型齐全、agent/main.py）
 4. 写 `.source.json` → `assets.next.part` 改名为 `assets.next`
 5. **下次启动**时原子切换；生成 interface 失败会自动回滚
+5b. 若「启动时＝自动运行日常」，下载会**等这一轮任务跑完**再开始（最多 60 分钟；
+    结束后又被点起来则放弃本次），避免 58 MB 下载和 OCR 抢带宽与 CPU
 
 模型清单是 **8 个文件**（`ppocr_v4/en_us` 上游没有 `det.onnx`，英文复用主检测器）。
 

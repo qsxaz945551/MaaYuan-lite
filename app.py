@@ -172,6 +172,8 @@ def main() -> int:
         ROOT,
         enabled=bool(settings.get("auto_update_resources", True)),
         log=service.note,
+        # 启动时就自动跑日常时，下载等这一轮结束再开始，别和 OCR 抢资源。
+        wait_while=lambda: bool(service.snapshot().get("busy")),
     )
 
     # 「启动时自动运行日常」是自动化设置，和界面形态无关。

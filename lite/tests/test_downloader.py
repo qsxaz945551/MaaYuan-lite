@@ -223,3 +223,61 @@ class AutoCheckLogTest(unittest.TestCase):
         self.assertTrue(
             any("检查资源更新失败" in msg and level == "warn" for msg, level in self.lines)
         )
+
+
+class DeferWhileBusyTest(unittest.TestCase):
+    """「启动时自动运行」时，更新下载要等这一轮任务跑完。"""
+
+    def test_wait_until_idle_returns_when_flag_clears(self):
+        calls = {"n": 0}
+
+        def busy():
+            calls["n"] += 1
+            return calls["n"] < 3
+
+        with unittest.mock.patch.object(downloader.time, "sleep", lambda *_: None):
+            self.assertTrue(downloader._wait_until_idle(busy, limit=60, interval=0))
+        self.assertEqual(calls["n"], 3)
+
+    def test_wait_until_idle_gives_up_after_limit(self):
+        with unittest.mock.patch.object(downloader.time, "sleep", lambda *_: None):
+            self.assertFalse(downloader._wait_until_idle(lambda: True, limit=0))
+
+    def test_auto_check_defers_download_until_idle(self):
+        class InlineThread:
+            def __init__(self, target=None, name=None, daemon=None):
+                self._target = target
+
+            def start(self):
+                self._target()
+
+        logs: list[str] = []
+        started: list[dict] = []
+        busy_calls = {"n": 0}
+
+        def busy():
+            busy_calls["n"] += 1
+            return busy_calls["n"] == 1  # 第一次忙，等完就空闲
+
+        with (
+            unittest.mock.patch.object(downloader.threading, "Thread", InlineThread),
+            unittest.mock.patch.object(downloader.time, "sleep", lambda *_: None),
+            unittest.mock.patch(
+                "lite.updater.check_updates",
+                lambda root, **kwargs: {
+                    "resource": {
+                        "available": True,
+                        "local": "old",
+                        "remote": "new",
+                        "remoteDate": "2026-11-08",
+                    }
+                },
+            ),
+            unittest.mock.patch.object(downloader, "start", lambda *a, **k: started.append(k) or True),
+        ):
+            downloader.auto_check(
+                Path("."), log=lambda msg, level="info": logs.append(msg), wait_while=busy
+            )
+
+        self.assertEqual(len(started), 1)
+        self.assertTrue(any("等本轮任务结束" in line for line in logs))
