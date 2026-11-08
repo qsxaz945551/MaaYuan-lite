@@ -1,0 +1,38 @@
+{
+  "stamp": "20261108-092110",
+  "wall_s": 84.2,
+  "samples": 43,
+  "private_avg_mb": 1661.3,
+  "private_peak_mb": 1805.7,
+  "ws_avg_mb": 367.1,
+  "ws_peak_mb": 490.9,
+  "cpu_avg_pct": 129.2,
+  "finished": true,
+  "events": [
+    [
+      0.0,
+      "start:查询CDK"
+    ],
+    [
+      0.0,
+      "done:查询CDK"
+    ],
+    [
+      0.0,
+      "start:更新资源"
+    ],
+    [
+      0.0,
+      "start:🚀 启动游戏"
+    ],
+    [
+      2.0,
+      "done:更新资源"
+    ],
+    [
+      84.2,
+      "任务已全部完成"
+    ]
+  ],
+  "csv": "original-run-20261108-092110.csv"
+}
