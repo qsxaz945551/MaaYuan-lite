@@ -1,6 +1,6 @@
 # MaaYuan Lite 项目报告
 
-> 版本：0.3.3（2026-11-07 23:45）  
+> 版本：0.3.4（2026-11-08 09:40）  
 > 定位：**后续开发以本报告为准**，主文档；
 > `LITE.md`（功能现状）、`MANIFEST.md`（目录归属）、`docs/api-contract.md`（接口契约）、  
 > 技术债与资产审查见 `docs/AUDIT-20261107-v2.md`（2026-11-07，含清理执行记录）。
@@ -369,6 +369,18 @@ pipeline 节点数、interface 任务数、日常链任务名、`pipeline_fixes`
 | 包内卫生 | 冒烟会生成 `runtime/`、`config/`、`debug/`，交付前清掉；`README.md` 纳入打包清单；包内 `runtime-config.json` 去掉 `automation` 段（否则开发机的「自动运行日常」会被新用户继承） | 包内只剩程序本身与默认值 |
 
 测试 302 → **306**（新增用户/默认文件分离 3 项、设置迁移 1 项）。
+
+### 3.10 输入方式：AdbShell → 自动择优（0.3.4）
+
+| 项 | 动作 | 结果 |
+|---|---|---|
+| 输入方式 | `input_methods` 1 → 7（AdbShell \| MinitouchAndAdbKey \| Maatouch） | 框架按 Maatouch > Minitouch > AdbShell 选；跑到一半能在设备上看到 MaaTouch 的 `app_process` |
+| 截图方式 | 维持 `RawWithGzip` | 实测 235 ms/帧，原版同为 236 ms，已是本机最快（EmulatorExtras 雷电 14 不支持） |
+| 打包 | `docs/evidence/` 不进用户包 | 3001 个文件 / 343.3 MB |
+
+0.3.4 全链验收：**517.4 s，7 成功 + 1 未领取 + 0 失败**（鸢报鸟食不足）。0.3.2 同任务集折算 595.8 s
+（619.6 减去进膳 23.8），**−13%**。据点单项 112 → 49 s 贡献最大，但该项本身波动也大
+（11-05 跑过 50.8 s），收益主体仍应归给「每次点击不再起 adb 子进程」。
 
 ---
 

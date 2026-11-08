@@ -359,6 +359,12 @@ Lite 的私有提交低约 14%，工作集反而高 85%——这是把 OCR 模�
 **该方案已被否决**（用户 2026-11-07：不能量化模型）——识别率与误判风险不可接受，`assets/resource/base/model/ocr` 下的模型保持原样，不要替换、裁剪或量化。
 因此这 435 MiB 视为固定成本，进一步降内存只能从模型以外的部分（资源加载、截图缓冲、缓存）想办法。
 
+### 输入与截图方式（2026-11-08 实测）
+
+- **截图固定 `RawWithGzip`**：本机 235 ms/帧，已是最快可用（雷电 14 不支持 EmulatorExtras，Encode 375 ms，EncodeToFileAndPull 588 ms）。原版跑起来也是 RawWithGzip，236 ms。
+- **输入改为自动择优**：0.3.4 起 `input_methods` 从 1（只有 AdbShell）改为 7（AdbShell | MinitouchAndAdbKey | Maatouch），由框架按 Maatouch > MinitouchAndAdbKey > AdbShell 的优先级挑，Maatouch 起不来会自动退回 AdbShell。只给 AdbShell 时每次点击都要起一个 adb 子进程，本机 `adb shell` 往返约 95 ms。
+- 验证：跑到一半在设备上能看到 MaaTouch 的 `app_process` 常驻进程，说明走的是 Maatouch；整链 8 项 **517.4 s / 7 成功 + 1 未领取 / 0 失败**（0.3.2 同任务集折算 595.8 s，−13%）。据点一项从 112 s 降到 49 s，但该项本身波动大（11-05 也跑过 50.8 s），不能全算在输入方式头上。
+
 ### 原版实跑基线（2026-11-08，整轮 08:48–08:58 + 冷启动单测 09:21）
 
 环境：MaaYuan **v2.3.1-beta.3**（MFAAvalonia v2.6.8 / MaaFramework 5.6.0 / 资源 v2.3.2-beta.1），

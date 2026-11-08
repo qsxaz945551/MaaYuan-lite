@@ -179,10 +179,11 @@ def main() -> int:
     docs = ROOT / "docs"
     if docs.is_dir():
         copy_tree(docs, target / "docs", "docs")
-        # 审查报告与交接文档是维护者材料，不进用户包。
+        # 审查报告、交接文档、性能采样都是维护者材料，不进用户包。
         for pattern in ("AUDIT-*.md", "*-HANDOFF.md"):
             for path in (target / "docs").glob(pattern):
                 path.unlink()
+        shutil.rmtree(target / "docs" / "evidence", ignore_errors=True)
 
     generated = target / "build" / "generated"
     generated.mkdir(parents=True, exist_ok=True)

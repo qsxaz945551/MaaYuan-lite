@@ -298,8 +298,13 @@ class LiteSession:
             self._controller = AdbController(
                 adb_path=self.adb_path,
                 address=self.serial,
+                # 截图只给 RawWithGzip：本机实测 235 ms，已是最快可用方式
+                # （雷电 14 不支持 EmulatorExtras；Encode 375 ms、EncodeToFileAndPull 588 ms）。
                 screencap_methods=4,
-                input_methods=1,
+                # 输入交给框架按优先级选：Maatouch > MinitouchAndAdbKey > AdbShell。
+                # 只给 AdbShell 时每次点击都要起一个 adb 子进程（本机 shell 往返约 95 ms）；
+                # 三个都给，Maatouch 不可用时框架会自己退回 AdbShell。
+                input_methods=7,
                 config={},
                 agent_path=self.agent_binary,
             )
