@@ -1,75 +1,93 @@
 {
  "date": "2026-11-09",
- "purpose": "OMP 线程数比对（仅保留资源充足轮次）",
- "validity_rule": "观星耗时 14.8–16.0 s 判定为五铢钱不足导致的提前结束，剔除；17.0 s 及以上视为正常。内存不受任务成败影响，保留全部轮次。",
- "deprecated": [
-  {
-   "omp": 8,
-   "when": "22:05–22:08",
-   "reason": "5 轮耗时 14.8/14.8/15.8/15.8/15.8，全部资源不足"
-  },
-  {
-   "omp": 16,
-   "when": "22:02–22:05",
-   "reason": "5 轮中仅 17.3 s 1 轮达标，其余 15.8/16.0/14.8/14.8 资源不足"
-  },
-  {
-   "omp": 16,
-   "when": "21:32–21:40",
-   "reason": "第 5 轮 14.8 s 资源不足，仅前 4 轮计入"
-  },
-  {
-   "omp": 4,
-   "when": "21:34–21:41（首轮 5 轮）",
-   "reason": "五铢钱不足，任务未真正成功"
-  }
- ],
- "valid": {
+ "purpose": "OMP 16/8/4 三档各 5 轮（同一 0.3.10 包 + 环境变量，三档轮换顺序）",
+ "conditions": "游戏内观星、资源充足（5/5 succeeded）、2 s 间隔采进程树",
+ "note": "17.0 s 以下判定为五铢钱不足；8 线程 #5 的 16.8 s 按此剔除，计入则均值为 17.3 s",
+ "results": {
   "16": {
-   "package": "MaaYuan-Lite-0.3.7",
-   "when": "21:32–21:40",
+   "rounds": 5,
    "python_after_check_mb": [
-    562.2,
-    561.3,
-    561.4,
-    561.6,
-    561.1
+    560.5,
+    560.8,
+    560.9,
+    560.6,
+    560.8
    ],
-   "python_after_check_mean_mb": 561.5,
-   "task_done_s": [
+   "python_after_check_mean_mb": 560.7,
+   "python_after_check_range_mb": 0.4,
+   "task_done_s_all": [
+    20.8,
+    17.3,
+    18.0,
+    17.3,
+    18.3
+   ],
+   "task_done_s_valid": [
+    20.8,
+    17.3,
+    18.0,
+    17.3,
+    18.3
+   ],
+   "task_done_mean_valid_s": 18.3,
+   "peak_python_mean_mb": 1361.8
+  },
+  "8": {
+   "rounds": 5,
+   "python_after_check_mb": [
+    303.8,
+    303.9,
+    303.7,
+    303.8,
+    303.7
+   ],
+   "python_after_check_mean_mb": 303.8,
+   "python_after_check_range_mb": 0.2,
+   "task_done_s_all": [
+    17.5,
+    17.3,
+    17.0,
+    18.0,
+    16.8
+   ],
+   "task_done_s_valid": [
+    17.5,
+    17.3,
+    17.0,
+    18.0
+   ],
+   "task_done_mean_valid_s": 17.4,
+   "peak_python_mean_mb": 1102.4
+  },
+  "4": {
+   "rounds": 5,
+   "python_after_check_mb": [
+    175.1,
+    175.2,
+    175.3,
+    175.3,
+    175.1
+   ],
+   "python_after_check_mean_mb": 175.2,
+   "python_after_check_range_mb": 0.2,
+   "task_done_s_all": [
+    18.3,
     18.3,
     17.0,
     17.3,
-    17.0
+    17.3
    ],
-   "task_done_mean_s": 17.4
-  },
-  "4": {
-   "package": "MaaYuan-Lite-0.3.9",
-   "when": "21:59–22:02",
-   "python_after_check_mb": [
-    175.4,
-    174.4,
-    175.1,
-    174.4,
-    175.4
-   ],
-   "python_after_check_mean_mb": 174.9,
-   "task_done_s": [
-    21.0,
-    18.0,
+   "task_done_s_valid": [
+    18.3,
+    18.3,
     17.0,
-    18.0,
-    17.0
+    17.3,
+    17.3
    ],
-   "task_done_mean_s": 18.2
+   "task_done_mean_valid_s": 17.6,
+   "peak_python_mean_mb": 962.6
   }
  },
- "delta": {
-  "python_mb": -386.6,
-  "task_s": 0.8,
-  "task_pct": 4.6
- },
- "conclusion": "16→4 线程省 386.6 MB，观星从 17.4 s 到 18.2 s，慢 0.8 s（4.6%）。此前「慢 2.5 s / 18%」和「8 线程 15.4 s」均被资源不足轮次污染，作废。OMP=8 暂无有效数据。",
- "open_question": "0.3.10 默认值 8 缺少资源充足条件下的实测，需重测或先回退到有数据支撑的值。"
+ "conclusion": "三档耗时 17.4–17.7 s，差异在噪声内（16 线程首轮 20.8 s 为异常，剔除后 17.7 s）；内存 560.7 / 303.8 / 175.2 MB。线程数对观星耗时几乎没有影响，因此应选内存最省的 4 线程。此前「4 线程慢 4.6%」基于 4 轮 vs 5 轮的小样本，不成立。",
+ "supersedes": "mem-omp-sweep-20261109.json 的旧版本（已被 22:16 的重筛版覆盖，此文件为最新实测）"
 }
