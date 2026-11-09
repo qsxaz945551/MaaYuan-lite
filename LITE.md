@@ -338,7 +338,8 @@ Lite 的私有提交低约 14%，工作集反而高 85%——这是把 OCR 模�
 
 两处有效优化（`lite/session.py`）：
 
-- **`OMP_NUM_THREADS=4`**：onnxruntime 按 OpenMP 线程数复制 CPU arena，16 核时两个模型提交约 1.5 GiB。限到 4 线程后提交降到约 1.1 GiB，而且**更快**（全屏 OCR 511 ms/op vs 544 ms/op）。在 `_import_maa()` 里于导入 maa 之前设置，调用方显式指定时不覆盖。
+- **`OMP_NUM_THREADS=4`**：onnxruntime / numpy / opencv 在 import 时就按线程数建好线程池，16 核默认会多占约 385 MB。**必须在 `app.py` 顶部、任何第三方 import 之前设置**——0.3.8 之前放在 `_import_maa()` 里，那时线程池早已初始化，等于没生效（实测空闲 661.6 MB vs 提前设置的 276.7 MB）。调用方显式指定时不覆盖。
+- **推理后端默认 CPU**：框架的自动选择在本机会走 DirectML（核显），主 python 峰值 1003.9 MB vs CPU 的 565.8 MB。0.3.8 起默认 `use_cpu()`，`MAAYUAN_FORCE_DML=1` 可退回自动选择。
 - **`set_reco_image_cache_limit(64)`**：框架默认按 4096 帧缓存识别原图。Lite 不读 `RecoDetail` 的 raw/draws，留 64 帧足够调试，省下随识别次数线性增长的那部分。
 
 同一队列、同一会话的前后对比（整棵进程树，3 秒采样）：

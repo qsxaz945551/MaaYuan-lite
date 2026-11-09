@@ -1,0 +1,159 @@
+{
+ "date": "2026-11-09",
+ "version_tested": "MaaYuan-Lite 0.3.7 包 + 候选改动（0.3.8）",
+ "goal": "验证 OMP_NUM_THREADS 与推理后端（DML vs CPU）对内存和任务耗时的影响，时间优先",
+ "method": "build/ab_ep.py：启动 Desktop.exe → 空闲稳定后采样 → POST /api/run-task → 固定时长 40–100 s 采样 → /api/stop + /api/exit。2 s 间隔，整棵进程树私有提交，剔除 PID 复用污染帧。",
+ "control_variable_finding": "OMP 16→4 省约 390 MB（A→D），DML→CPU 再省约 419 MB（D→B，双任务样本 435 MB），OMP 4→2 再省 129 MB。全部组任务耗时一致。",
+ "groups": [
+  {
+   "label": "A-dml",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": ""
+   },
+   "tasks": "🔮 观星",
+   "task_duration_s": 28.5,
+   "idle_private_mb": 661.6,
+   "run_peak_private_mb": 1695.9,
+   "run_tail_avg_private_mb": 1647.3,
+   "run_peak_main_python_mb": 1382.9,
+   "procs_peak": 10,
+   "wall_s": 40.2,
+   "active_frames": 20
+  },
+  {
+   "label": "B-cpu4",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "1",
+    "OMP_NUM_THREADS": "4"
+   },
+   "tasks": "🔮 观星",
+   "task_duration_s": 28.5,
+   "idle_private_mb": 274.7,
+   "run_peak_private_mb": 886.7,
+   "run_tail_avg_private_mb": 853.7,
+   "run_peak_main_python_mb": 573.4,
+   "procs_peak": 10,
+   "wall_s": 40.2,
+   "active_frames": 20
+  },
+  {
+   "label": "C-cpu2",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "1",
+    "OMP_NUM_THREADS": "2"
+   },
+   "tasks": "🔮 观星",
+   "task_duration_s": 28.5,
+   "idle_private_mb": 213.2,
+   "run_peak_private_mb": 757.4,
+   "run_tail_avg_private_mb": 718.2,
+   "run_peak_main_python_mb": 508.3,
+   "procs_peak": 10,
+   "wall_s": 40.2,
+   "active_frames": 20
+  },
+  {
+   "label": "D-omp4-dml",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": "4"
+   },
+   "tasks": "🔮 观星",
+   "task_duration_s": 28.5,
+   "idle_private_mb": 283.0,
+   "run_peak_private_mb": 1305.9,
+   "run_tail_avg_private_mb": 1261.5,
+   "run_peak_main_python_mb": 995.1,
+   "procs_peak": 10,
+   "wall_s": 40.2,
+   "active_frames": 20
+  },
+  {
+   "label": "E-appfix-idle",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": ""
+   },
+   "tasks": "🔮 观星",
+   "task_duration_s": 0.0,
+   "idle_private_mb": 276.7,
+   "run_peak_private_mb": 0.0,
+   "run_tail_avg_private_mb": 0.0,
+   "run_peak_main_python_mb": 0.0,
+   "procs_peak": 0,
+   "wall_s": 0.0,
+   "active_frames": 0
+  },
+  {
+   "label": "F-dml-2tasks",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": ""
+   },
+   "tasks": [
+    "🗡 白鹄扫荡",
+    "💎 修为历练"
+   ],
+   "task_duration_s": 67.8,
+   "idle_private_mb": 275.9,
+   "run_peak_private_mb": 1311.2,
+   "run_tail_avg_private_mb": 1268.0,
+   "run_peak_main_python_mb": 1003.9,
+   "procs_peak": 10,
+   "wall_s": 100.6,
+   "active_frames": 50
+  },
+  {
+   "label": "G-cpu-2tasks",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "1",
+    "OMP_NUM_THREADS": ""
+   },
+   "tasks": [
+    "🗡 白鹄扫荡",
+    "💎 修为历练"
+   ],
+   "task_duration_s": 67.8,
+   "idle_private_mb": 275.6,
+   "run_peak_private_mb": 876.0,
+   "run_tail_avg_private_mb": 826.5,
+   "run_peak_main_python_mb": 565.8,
+   "procs_peak": 10,
+   "wall_s": 100.6,
+   "active_frames": 50
+  },
+  {
+   "label": "base-dml",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": ""
+   },
+   "tasks": "🔮 观星",
+   "task_duration_s": 28.5,
+   "idle_private_mb": 663.3,
+   "run_peak_private_mb": 1696.4,
+   "run_tail_avg_private_mb": 1648.2,
+   "run_peak_main_python_mb": 1388.0,
+   "procs_peak": 10,
+   "wall_s": 150.9,
+   "active_frames": 0
+  },
+  {
+   "label": "cpu-omp4",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "1",
+    "OMP_NUM_THREADS": "4"
+   },
+   "tasks": "🔮 观星",
+   "task_duration_s": 28.5,
+   "idle_private_mb": 276.0,
+   "run_peak_private_mb": 885.8,
+   "run_tail_avg_private_mb": 834.8,
+   "run_peak_main_python_mb": 577.1,
+   "procs_peak": 10,
+   "wall_s": 150.8,
+   "active_frames": 0
+  }
+ ]
+}

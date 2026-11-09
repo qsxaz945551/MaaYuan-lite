@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import os
+
+# 必须在任何第三方 import 之前设置：onnxruntime / numpy / opencv 在 import 时
+# 就按 OMP_NUM_THREADS 建好线程池与缓冲区，之后再 setdefault 已经晚了。
+# 实测（2026-11-09）：把设置从 session.start() 提前到这里，空闲私有提交
+# 661.6 → 283.0 MB、识别峰值 1695.9 → 1305.9 MB，任务耗时（观星 28.5 s）不变。
+os.environ.setdefault("OMP_NUM_THREADS", str(min(4, os.cpu_count() or 4)))
+
 import argparse
 import json
 import sys

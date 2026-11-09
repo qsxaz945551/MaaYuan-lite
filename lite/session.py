@@ -321,6 +321,15 @@ class LiteSession:
                     raise SessionError("ADB controller connection failed")
 
             self._resource = Resource()
+            # 默认用 CPU EP。本机实测框架的自动选择会走 DirectML（核显），
+            # 主 python 峰值 1003.9 MB vs CPU 的 565.8 MB，差 438 MB；而两个任务
+            # 样本的耗时完全一致（观星 28.5 s、白鹄+修为 67.8 s），所以没有理由
+            # 为它付这份内存。MAAYUAN_FORCE_DML=1 可退回框架的自动选择。
+            if os.environ.get("MAAYUAN_FORCE_DML", "").strip().lower() not in {"1", "true", "yes"}:
+                try:
+                    self._resource.use_cpu()
+                except Exception:  # noqa: BLE001 - 老绑定可能没有这个方法
+                    pass
             loading = self._resource.post_bundle(self.resource_path).wait()
             if not loading.succeeded:
                 raise SessionError("Maa resource loading failed")
