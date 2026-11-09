@@ -1,0 +1,96 @@
+{
+ "version": "MaaYuan-Lite-0.3.7",
+ "stamp": "20261109-081705",
+ "csv": "procbreakdown-20261109-081705.csv",
+ "note": "0.3.4 基线采样根 3868 是 MaaFramework python 服务进程（不含 WPF）；root_* 为 Desktop.exe 整树，service_* 为对齐 0.3.4 的口径",
+ "tasks": [
+  "🔮 观星",
+  "🗡 白鹄扫荡",
+  "💎 修为历练"
+ ],
+ "idle_frames": 5,
+ "run_frames": 50,
+ "warm_frames": 34,
+ "contaminated_frames": 1,
+ "cleaning": "剔除 procs>25 或含 Ld9BoxHeadless.exe 的帧：Windows PID 复用会让 PPID 链误挂无关系统进程；CSV 保留原始帧",
+ "warm": {
+  "root_private_avg_mb": 1662.1,
+  "root_private_peak_mb": 1920.0,
+  "root_ws_avg_mb": 726.2,
+  "service_private_avg_mb": 1555.2,
+  "service_private_peak_mb": 1709.4,
+  "service_ws_avg_mb": 576.7,
+  "wpf_and_others_avg_mb": 106.9,
+  "procs_peak": 10
+ },
+ "python_processes_private": [
+  {
+   "pid": 7536,
+   "role": "服务主进程",
+   "avg_mb": 1319.3,
+   "peak_mb": 1395.7,
+   "frames": 35
+  },
+  {
+   "pid": 5424,
+   "role": "agent 子进程",
+   "avg_mb": 187.6,
+   "peak_mb": 187.7,
+   "frames": 33
+  }
+ ],
+ "by_process_private": {
+  "python.exe": {
+   "avg_mb": 770.1,
+   "peak_mb": 1395.7,
+   "samples": 68
+  },
+  "MaaYuanLite.Desktop.exe": {
+   "avg_mb": 103.8,
+   "peak_mb": 107.6,
+   "samples": 35
+  },
+  "rundll32.exe": {
+   "avg_mb": 5.4,
+   "peak_mb": 5.4,
+   "samples": 3
+  },
+  "adb.exe": {
+   "avg_mb": 4.4,
+   "peak_mb": 5.0,
+   "samples": 79
+  },
+  "conhost.exe": {
+   "avg_mb": 1.3,
+   "peak_mb": 1.3,
+   "samples": 111
+  }
+ },
+ "by_process_ws": {
+  "python.exe": {
+   "avg_mb": 262.2,
+   "peak_mb": 503.4,
+   "samples": 68
+  },
+  "MaaYuanLite.Desktop.exe": {
+   "avg_mb": 145.3,
+   "peak_mb": 148.7,
+   "samples": 35
+  },
+  "adb.exe": {
+   "avg_mb": 11.8,
+   "peak_mb": 12.3,
+   "samples": 79
+  },
+  "rundll32.exe": {
+   "avg_mb": 9.8,
+   "peak_mb": 9.8,
+   "samples": 3
+  },
+  "conhost.exe": {
+   "avg_mb": 7.4,
+   "peak_mb": 7.5,
+   "samples": 111
+  }
+ }
+}
