@@ -1,0 +1,46 @@
+{
+ "version": "MaaYuan-Lite-0.3.7",
+ "stamp": "20261109-082911",
+ "root_pid": 14636,
+ "port": 8765,
+ "csv": "memstages-20261109-082911.csv",
+ "note": "分阶段定位：check 只建会话+截图不跑任务；task1/task2 用 run-task 执行游戏任务",
+ "stages": {
+  "idle": {
+   "frames": 8,
+   "root_avg_mb": 659.0,
+   "root_peak_mb": 659.3,
+   "service_avg_mb": 562.1,
+   "main_python_avg_mb": 560.8,
+   "agent_avg_mb": 0.0,
+   "wpf_avg_mb": 96.8
+  },
+  "check": {
+   "frames": 5,
+   "root_avg_mb": 725.0,
+   "root_peak_mb": 776.7,
+   "service_avg_mb": 617.8,
+   "main_python_avg_mb": 616.4,
+   "agent_avg_mb": 0.0,
+   "wpf_avg_mb": 107.2
+  },
+  "task1": {
+   "frames": 22,
+   "root_avg_mb": 1642.2,
+   "root_peak_mb": 1950.5,
+   "service_avg_mb": 1536.7,
+   "main_python_avg_mb": 1377.5,
+   "agent_avg_mb": 147.3,
+   "wpf_avg_mb": 105.5
+  },
+  "task2": {
+   "frames": 35,
+   "root_avg_mb": 1549.0,
+   "root_peak_mb": 1713.2,
+   "service_avg_mb": 1445.9,
+   "main_python_avg_mb": 1271.2,
+   "agent_avg_mb": 161.8,
+   "wpf_avg_mb": 103.1
+  }
+ }
+}
