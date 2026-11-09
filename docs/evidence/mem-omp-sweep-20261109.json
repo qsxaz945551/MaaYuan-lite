@@ -1,11 +1,89 @@
 {
  "date": "2026-11-09",
- "purpose": "OMP 16/8/4 三档各 5 轮（同一 0.3.10 包 + 环境变量，三档轮换顺序）",
- "conditions": "游戏内观星、资源充足（5/5 succeeded）、2 s 间隔采进程树",
- "note": "17.0 s 以下判定为五铢钱不足；8 线程 #5 的 16.8 s 按此剔除，计入则均值为 17.3 s",
+ "purpose": "OMP 16/8/4 三档各 5 轮（同一 0.3.10 包 + 环境变量 OMP_NUM_THREADS，三档轮换顺序）",
+ "conditions": "游戏内观星、资源充足（15/15 succeeded）、2 s 间隔采进程树；内存取启动+自动连接检查后的 python 私有提交，与任务成败无关",
+ "execution_order": [
+  "16#1",
+  "8#1",
+  "4#1",
+  "8#2",
+  "4#2",
+  "16#2",
+  "4#3",
+  "16#3",
+  "8#3",
+  "16#4",
+  "8#4",
+  "4#4",
+  "8#5",
+  "4#5",
+  "16#5"
+ ],
+ "discard_policy": [
+  "① 起点不一致必须剔除：本轮实验中只有 16 线程首轮需要先从游戏主界面导航进观星页，其余 14 轮都在观星页内起步，因此 16#1 的 20.8 s 不可与其余轮次直接比较。",
+  "② 五铢钱不足区间 14.8–16.0 s 一律剔除（2026-11-09 多次踩坑的教训）。",
+  "③ intensity 不达标（节点完成 < 10）的轮次不计入耗时均值。",
+  "内存列不受①③影响，保留全部 5 轮。"
+ ],
  "results": {
   "16": {
-   "rounds": 5,
+   "rounds": [
+    {
+     "round": 1,
+     "exec_order": 1,
+     "python_after_check_mb": 560.5,
+     "peak_python_mb": 1356.4,
+     "task_done_s": 20.8,
+     "nodes_done": 12,
+     "intensity_valid": true,
+     "counted_for_time": false,
+     "discard_reason": "实验首轮：游戏原本停在主界面，需先导航进入观星页面，比其余轮次多出约 3 s 的页面切换耗时（20.8 s vs 其余 17.3–18.3 s）。用户 2026-11-09 22:38 指出，剔除。"
+    },
+    {
+     "round": 2,
+     "exec_order": 6,
+     "python_after_check_mb": 560.8,
+     "peak_python_mb": 1387.8,
+     "task_done_s": 17.3,
+     "nodes_done": 23,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 3,
+     "exec_order": 8,
+     "python_after_check_mb": 560.9,
+     "peak_python_mb": 1348.0,
+     "task_done_s": 18.0,
+     "nodes_done": 26,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 4,
+     "exec_order": 10,
+     "python_after_check_mb": 560.6,
+     "peak_python_mb": 1392.8,
+     "task_done_s": 17.3,
+     "nodes_done": 27,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 5,
+     "exec_order": 15,
+     "python_after_check_mb": 560.8,
+     "peak_python_mb": 1324.0,
+     "task_done_s": 18.3,
+     "nodes_done": 19,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    }
+   ],
    "python_after_check_mb": [
     560.5,
     560.8,
@@ -15,6 +93,7 @@
    ],
    "python_after_check_mean_mb": 560.7,
    "python_after_check_range_mb": 0.4,
+   "peak_python_mean_mb": 1361.8,
    "task_done_s_all": [
     20.8,
     17.3,
@@ -22,18 +101,73 @@
     17.3,
     18.3
    ],
-   "task_done_s_valid": [
-    20.8,
+   "task_done_s_counted": [
     17.3,
     18.0,
     17.3,
     18.3
    ],
-   "task_done_mean_valid_s": 18.3,
-   "peak_python_mean_mb": 1361.8
+   "task_done_mean_s": 17.7,
+   "counted_rounds": 4
   },
   "8": {
-   "rounds": 5,
+   "rounds": [
+    {
+     "round": 1,
+     "exec_order": 2,
+     "python_after_check_mb": 303.8,
+     "peak_python_mb": 1089.6,
+     "task_done_s": 17.5,
+     "nodes_done": 21,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 2,
+     "exec_order": 4,
+     "python_after_check_mb": 303.9,
+     "peak_python_mb": 1117.0,
+     "task_done_s": 17.3,
+     "nodes_done": 22,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 3,
+     "exec_order": 9,
+     "python_after_check_mb": 303.7,
+     "peak_python_mb": 1126.0,
+     "task_done_s": 17.0,
+     "nodes_done": 18,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 4,
+     "exec_order": 11,
+     "python_after_check_mb": 303.8,
+     "peak_python_mb": 1084.5,
+     "task_done_s": 18.0,
+     "nodes_done": 19,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 5,
+     "exec_order": 13,
+     "python_after_check_mb": 303.7,
+     "peak_python_mb": 1094.7,
+     "task_done_s": 16.8,
+     "nodes_done": 16,
+     "intensity_valid": true,
+     "counted_for_time": false,
+     "discard_reason": "耗时 16.8 s 落在五铢钱不足区间（14.8–16.0 s）的上沿，按保守口径剔除；该轮 intensity 有效（节点完成 16）。计入则均值 17.3 s。"
+    }
+   ],
    "python_after_check_mb": [
     303.8,
     303.9,
@@ -43,6 +177,7 @@
    ],
    "python_after_check_mean_mb": 303.8,
    "python_after_check_range_mb": 0.2,
+   "peak_python_mean_mb": 1102.4,
    "task_done_s_all": [
     17.5,
     17.3,
@@ -50,17 +185,73 @@
     18.0,
     16.8
    ],
-   "task_done_s_valid": [
+   "task_done_s_counted": [
     17.5,
     17.3,
     17.0,
     18.0
    ],
-   "task_done_mean_valid_s": 17.4,
-   "peak_python_mean_mb": 1102.4
+   "task_done_mean_s": 17.4,
+   "counted_rounds": 4
   },
   "4": {
-   "rounds": 5,
+   "rounds": [
+    {
+     "round": 1,
+     "exec_order": 3,
+     "python_after_check_mb": 175.1,
+     "peak_python_mb": 938.8,
+     "task_done_s": 18.3,
+     "nodes_done": 13,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 2,
+     "exec_order": 5,
+     "python_after_check_mb": 175.2,
+     "peak_python_mb": 948.2,
+     "task_done_s": 18.3,
+     "nodes_done": 14,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 3,
+     "exec_order": 7,
+     "python_after_check_mb": 175.3,
+     "peak_python_mb": 992.3,
+     "task_done_s": 17.0,
+     "nodes_done": 16,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 4,
+     "exec_order": 12,
+     "python_after_check_mb": 175.3,
+     "peak_python_mb": 966.0,
+     "task_done_s": 17.3,
+     "nodes_done": 28,
+     "intensity_valid": true,
+     "counted_for_time": true,
+     "discard_reason": ""
+    },
+    {
+     "round": 5,
+     "exec_order": 14,
+     "python_after_check_mb": 175.1,
+     "peak_python_mb": 967.7,
+     "task_done_s": 17.3,
+     "nodes_done": 9,
+     "intensity_valid": false,
+     "counted_for_time": false,
+     "discard_reason": "intensity 不达标（节点完成 9 < 10），识别强度不足，耗时不计入均值。"
+    }
+   ],
    "python_after_check_mb": [
     175.1,
     175.2,
@@ -70,6 +261,7 @@
    ],
    "python_after_check_mean_mb": 175.2,
    "python_after_check_range_mb": 0.2,
+   "peak_python_mean_mb": 962.6,
    "task_done_s_all": [
     18.3,
     18.3,
@@ -77,17 +269,16 @@
     17.3,
     17.3
    ],
-   "task_done_s_valid": [
+   "task_done_s_counted": [
     18.3,
     18.3,
     17.0,
-    17.3,
     17.3
    ],
-   "task_done_mean_valid_s": 17.6,
-   "peak_python_mean_mb": 962.6
+   "task_done_mean_s": 17.7,
+   "counted_rounds": 4
   }
  },
- "conclusion": "三档耗时 17.4–17.7 s，差异在噪声内（16 线程首轮 20.8 s 为异常，剔除后 17.7 s）；内存 560.7 / 303.8 / 175.2 MB。线程数对观星耗时几乎没有影响，因此应选内存最省的 4 线程。此前「4 线程慢 4.6%」基于 4 轮 vs 5 轮的小样本，不成立。",
- "supersedes": "mem-omp-sweep-20261109.json 的旧版本（已被 22:16 的重筛版覆盖，此文件为最新实测）"
+ "conclusion": "内存 560.7 / 303.8 / 175.2 MB（极差 ≤0.4），线程数是唯一变量；耗时在剔除起点不一致与强度不足的轮次后为 17.7 / 17.3 / 17.6 s（或按严格口径 17.7 / 17.5 / 17.7），三档差异在噪声内。线程数对观星耗时没有实质影响，故取内存最省的 4 线程（0.3.11）。",
+ "supersedes": "本文件 22:26 版本（把 16 线程首轮 20.8 s 仅记为「异常」，未记录起点不一致的成因）"
 }
