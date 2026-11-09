@@ -1,5 +1,18 @@
 {
   "schema_version": 1,
   "description": "MaaYuan Lite 任务级覆盖。只修改经过实测确认的单点，不修改上游资源文件。",
-  "tasks": {}
+  "tasks": {
+    "🏯 据点日常": {
+      "reason": "en 只有 rec.onnx、没有 det.onnx；该节点未开 only_rec，日志报 Failed to load det or rec: [name=en]，ocrer_ 为空导致守卫永不命中。补齐后与其余 29 个 en 节点一致。",
+      "pipeline_override": {
+        "无行囊check": {
+          "recognition": {
+            "param": {
+              "only_rec": true
+            }
+          }
+        }
+      }
+    }
+  }
 }

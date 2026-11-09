@@ -56,6 +56,33 @@ class ScopeTest(unittest.TestCase):
             text = (ROOT / relative).read_text(encoding="utf-8")
             self.assertNotIn("朝歌", text, relative)
 
+    def test_en_guard_only_runs_rec(self):
+        """en 模型没有 det.onnx，据点的「无行囊check」必须只跑 rec，否则 ocrer_ 为空。
+
+        2026-11-10：该节点是唯一未开 only_rec 的 en 节点，守卫因此永久失效。
+        覆盖写在 pipeline-overrides.json，上游 assets 保持原样。
+        """
+        lite, report = apply_scope(self.interface, self.scope, self.overrides)
+        task = next(t for t in lite["task"] if t["name"] == "🏯 据点日常")
+        node = task["pipeline_override"]["无行囊check"]
+        self.assertTrue(node["recognition"]["param"]["only_rec"])
+
+        # 上游资源不能改：base 节点仍是 det+rec
+        raw = json.loads(
+            (ROOT / "assets/resource/base/pipeline/daily/base-events.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertNotIn("only_rec", raw["无行囊check"]["recognition"]["param"])
+
+        # 覆盖要在报告里留痕，便于审计
+        self.assertTrue(
+            any(
+                item["task"] == "🏯 据点日常" and "无行囊check" in item["nodes"]
+                for item in report["pipeline_overrides"]
+            )
+        )
+
     def test_ocr_quantization_is_forbidden(self):
         self.assertEqual(
             self.scope["constraints"]["ocr_model_quantization"], "forbidden"

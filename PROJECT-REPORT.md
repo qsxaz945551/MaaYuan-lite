@@ -697,6 +697,36 @@ python devtools/smoke/inject_fault.py <fault>      # Q2 故障注入（emulator/
 
 ---
 
+## 0.3.12 修复据点守卫的 en OCR（2026-11-10）
+
+**问题**：`daily/base-events.json` 的 `无行囊check` 用 `"model": "en"` 且未开 `only_rec`，而 `assets/resource/base/model/ocr/en/`
+只有 `rec.onnx`（7.30 MB）、没有 `det.onnx`。框架报 `Failed to load det or rec: [name=en]`，该节点的 `ocrer_` 为空，
+识别永远失败 → 守卫永不命中。
+
+**影响**：行囊为 0 时不会按上游设计「检测到无可用行囊，任务中止」而 `stop`，而是继续走到
+`开始在最右屏寻找三星据点情报`，在那里空搜或超时。
+
+**修法**：写进 `lite/pipeline-overrides.json` 的「🏯 据点日常」任务级覆盖，不动上游资源：
+
+```json
+{"无行囊check": {"recognition": {"param": {"only_rec": true}}}}
+```
+
+只写一个字段的可行性来自框架源码：`PipelineParser::parse_recognition`（`recognition` 省略 `type` 时
+回落到 `parent_type`，`param` 缺省字段继承 `parent_param`）与 `parse_ocr_param` 的
+`get_and_check_value(input, "only_rec", ..., default_value.only_rec)`。因此 `model` / `expected` /
+`roi` / `replace` 均保持原值，不会被冲掉。
+
+**统计依据**：全库 1443 个 OCR 节点中，`model: en` 共 30 个，其中 29 个已开 `only_rec`（与 en 无 det 自洽），
+只有这 1 个例外。
+
+**待验证**：该守卫在上游从未真正生效过，启用后若 ROI（`[459,51,51,56]`）在正常画面被误读成 `0`，
+会触发 `stop` 提前结束据点日常。需要一次真实据点日常确认不误判。
+
+测试 **315 项通过**（新增「en 守卫必须只跑 rec」1 项，同时钉住上游 assets 未被修改）。
+
+---
+
 ## 0.3.11 内存优化（2026-11-09）
 
 **改动**：`OMP_NUM_THREADS` 提前到 `app.py` 顶部（原先写在 `session.start()` 的

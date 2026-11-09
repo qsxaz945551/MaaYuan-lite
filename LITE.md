@@ -63,9 +63,13 @@ python lite/apply_scope.py
 
 ## 已加入的首个稳定性修复
 
-`lite/pipeline-overrides.json` 是任务级单点覆盖的入口（只改实测确认的节点，不动上游资源）。当前没有条目：2026-11-08 移除邺城后，最后一条覆盖也随之删除。
+`lite/pipeline-overrides.json` 是任务级单点覆盖的入口（只改实测确认的节点，不动上游资源）。当前一条：
 
-该覆盖会在生成 `build/generated/interface.json` 时自动合并，可直接被任务级 `pipeline_override` 使用，不修改上游资源 JSON。
+| 任务 | 节点 | 覆盖 | 原因 |
+|---|---|---|---|
+| 🏯 据点日常 | `无行囊check` | `recognition.param.only_rec = true` | `en` 模型只有 `rec.onnx`、没有 `det.onnx`，而该节点是 30 个 `en` 节点里唯一没开 `only_rec` 的，日志报 `Failed to load det or rec: [name=en]`，`ocrer_` 为空导致守卫永不命中 |
+
+该覆盖会在生成 `build/generated/interface.json` 时自动合并，可直接被任务级 `pipeline_override` 使用，不修改上游资源 JSON。合并语义由框架的 `PipelineParser::parse_recognition` 决定：`recognition` 里省略 `type` 时继承原节点类型，`param` 中未写的字段也继承原值，所以只写一个 `only_rec` 不会冲掉 `model` / `expected` / `roi` / `replace`。
 
 ## 当前阶段
 
