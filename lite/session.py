@@ -321,11 +321,12 @@ class LiteSession:
                     raise SessionError("ADB controller connection failed")
 
             self._resource = Resource()
-            # 默认用 CPU EP。本机实测框架的自动选择会走 DirectML（核显），
-            # 主 python 峰值 1003.9 MB vs CPU 的 565.8 MB，差 438 MB；而两个任务
-            # 样本的耗时完全一致（观星 28.5 s、白鹄+修为 67.8 s），所以没有理由
-            # 为它付这份内存。MAAYUAN_FORCE_DML=1 可退回框架的自动选择。
-            if os.environ.get("MAAYUAN_FORCE_DML", "").strip().lower() not in {"1", "true", "yes"}:
+            # 不强制推理后端，留给框架选。2026-11-09 游戏内实测（观星，节点完成 16）：
+            # 框架 Auto 选 DirectML 时主 python 1318 MB，强制 CPU 是 1356 MB ——
+            # 两者持平、DML 略低，耗时同为 28.0 s。此前「DML 多占 419 MB」是在
+            # 游戏未启动、识别空转的条件下测出的伪差异，不能作为依据。
+            # MAAYUAN_FORCE_CPU=1 可用于排查后端相关问题时强制 CPU。
+            if os.environ.get("MAAYUAN_FORCE_CPU", "").strip().lower() in {"1", "true", "yes"}:
                 try:
                     self._resource.use_cpu()
                 except Exception:  # noqa: BLE001 - 老绑定可能没有这个方法

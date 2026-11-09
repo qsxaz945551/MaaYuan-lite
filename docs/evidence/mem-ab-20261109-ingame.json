@@ -1,0 +1,74 @@
+{
+ "date": "2026-11-09",
+ "purpose": "在游戏真正运行（前台、节点完成达标）的条件下重测推理后端与 OMP",
+ "validity_rule": "intensity.valid=1 要求节点完成 ≥10 且 ROI 越界 ≤5；J 组 valid=0 不可用",
+ "groups": [
+  {
+   "label": "H-cpu-ingame",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": ""
+   },
+   "tasks": [
+    "🔮 观星"
+   ],
+   "task_duration_s": 28.0,
+   "idle_private_mb": 669.0,
+   "run_peak_private_mb": 1667.1,
+   "run_tail_avg_private_mb": 1645.9,
+   "run_peak_main_python_mb": 1356.3,
+   "intensity": {
+    "reco_failed": 108,
+    "nodes_done": 16,
+    "valid": 1
+   },
+   "wall_s": 60.3,
+   "active_frames": 17
+  },
+  {
+   "label": "I-dml-ingame",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": ""
+   },
+   "tasks": [
+    "🔮 观星"
+   ],
+   "task_duration_s": 28.0,
+   "idle_private_mb": 661.8,
+   "run_peak_private_mb": 1633.8,
+   "run_tail_avg_private_mb": 1548.5,
+   "run_peak_main_python_mb": 1318.1,
+   "intensity": {
+    "reco_failed": 51,
+    "nodes_done": 16,
+    "valid": 1
+   },
+   "wall_s": 60.2,
+   "active_frames": 10
+  },
+  {
+   "label": "J-dml-omp16-ingame",
+   "env": {
+    "MAAYUAN_FORCE_CPU": "",
+    "OMP_NUM_THREADS": "16"
+   },
+   "tasks": [
+    "🔮 观星"
+   ],
+   "task_duration_s": 28.0,
+   "idle_private_mb": 663.9,
+   "run_peak_private_mb": 2071.7,
+   "run_tail_avg_private_mb": 1962.6,
+   "run_peak_main_python_mb": 1375.3,
+   "intensity": {
+    "reco_failed": 36,
+    "nodes_done": 9,
+    "valid": 0
+   },
+   "wall_s": 60.2,
+   "active_frames": 10
+  }
+ ],
+ "conclusion": "游戏内观星：CPU 峰值 1667.1 / 主 python 1356.3，DML 1633.8 / 1318.1 —— 两者持平、DML 略低，耗时同为 28.0 s。此前「DML 多占 419 MB」不成立。"
+}
