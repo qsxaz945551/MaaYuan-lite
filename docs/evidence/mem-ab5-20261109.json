@@ -1,0 +1,164 @@
+{
+ "stamp": "20261109-213213",
+ "task": "🔮 观星",
+ "rounds": 5,
+ "results": [
+  {
+   "label": "0.3.7",
+   "round": 1,
+   "startup_s": 1.22,
+   "python_after_check_mb": 562.2,
+   "root_after_check_mb": 681.2,
+   "peak_root_mb": 1636.7,
+   "peak_python_mb": 1322.6,
+   "task_duration_s": 28.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 10,
+    "valid": 1
+   }
+  },
+  {
+   "label": "0.3.9",
+   "round": 1,
+   "startup_s": 1.01,
+   "python_after_check_mb": 177.0,
+   "root_after_check_mb": 273.4,
+   "peak_root_mb": 1259.5,
+   "peak_python_mb": 948.2,
+   "task_duration_s": 0.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 9,
+    "valid": 0
+   }
+  },
+  {
+   "label": "0.3.7",
+   "round": 2,
+   "startup_s": 1.01,
+   "python_after_check_mb": 561.3,
+   "root_after_check_mb": 662.7,
+   "peak_root_mb": 1695.0,
+   "peak_python_mb": 1382.7,
+   "task_duration_s": 28.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 9,
+    "valid": 0
+   }
+  },
+  {
+   "label": "0.3.9",
+   "round": 2,
+   "startup_s": 1.01,
+   "python_after_check_mb": 177.4,
+   "root_after_check_mb": 272.5,
+   "peak_root_mb": 1248.3,
+   "peak_python_mb": 935.9,
+   "task_duration_s": 0.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 9,
+    "valid": 0
+   }
+  },
+  {
+   "label": "0.3.7",
+   "round": 3,
+   "startup_s": 1.01,
+   "python_after_check_mb": 561.4,
+   "root_after_check_mb": 662.7,
+   "peak_root_mb": 1661.0,
+   "peak_python_mb": 1349.8,
+   "task_duration_s": 28.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 9,
+    "valid": 0
+   }
+  },
+  {
+   "label": "0.3.9",
+   "round": 3,
+   "startup_s": 1.02,
+   "python_after_check_mb": 176.8,
+   "root_after_check_mb": 276.1,
+   "peak_root_mb": 1280.4,
+   "peak_python_mb": 970.1,
+   "task_duration_s": 0.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 9,
+    "valid": 0
+   }
+  },
+  {
+   "label": "0.3.7",
+   "round": 4,
+   "startup_s": 1.11,
+   "python_after_check_mb": 561.6,
+   "root_after_check_mb": 664.2,
+   "peak_root_mb": 1700.9,
+   "peak_python_mb": 1391.4,
+   "task_duration_s": 28.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 9,
+    "valid": 0
+   }
+  },
+  {
+   "label": "0.3.9",
+   "round": 4,
+   "startup_s": 1.01,
+   "python_after_check_mb": 176.4,
+   "root_after_check_mb": 273.5,
+   "peak_root_mb": 1280.2,
+   "peak_python_mb": 967.8,
+   "task_duration_s": 0.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 10,
+    "valid": 1
+   }
+  },
+  {
+   "label": "0.3.7",
+   "round": 5,
+   "startup_s": 1.02,
+   "python_after_check_mb": 561.1,
+   "root_after_check_mb": 663.8,
+   "peak_root_mb": 1672.8,
+   "peak_python_mb": 1360.9,
+   "task_duration_s": 28.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 10,
+    "valid": 1
+   }
+  },
+  {
+   "label": "0.3.9",
+   "round": 5,
+   "startup_s": 1.02,
+   "python_after_check_mb": 177.6,
+   "root_after_check_mb": 273.9,
+   "peak_root_mb": 1277.7,
+   "peak_python_mb": 966.5,
+   "task_duration_s": 0.0,
+   "frames": 20,
+   "intensity": {
+    "nodes_done": 10,
+    "valid": 1
+   }
+  }
+ ],
+ "purpose": "0.3.7（OMP 未生效）vs 0.3.9（OMP=4）交替 5 轮，验证线程数下降的效果",
+ "validity": {
+  "python_after_check_mb": "有效：启动+自动连接检查后的 python 私有提交，5/5 稳定，不受任务状态影响",
+  "peak_python_mb / peak_root_mb": "方向有效但不完全可比：0.3.9 侧任务状态与 0.3.7 不同",
+  "task_duration_s": "无效：snapshot() 在单任务模式返回预览列表（duration=0），0.3.7 的 28.0 是 last-run 残留。不能用"
+ },
+ "conclusion": "OMP 16→4 使 python 私有提交从 561.5 MB 降到 177.0 MB，差 384.5 MB，5 轮波动 <1 MB，完全复现；峰值方向一致（1361.5 → 957.7，差 403.8 MB）。"
+}
