@@ -6,9 +6,11 @@ import os
 
 # 必须在任何第三方 import 之前设置：onnxruntime / numpy / opencv 在 import 时
 # 就按 OMP_NUM_THREADS 建好线程池与缓冲区，之后再 setdefault 已经晚了。
-# 实测（2026-11-09）：把设置从 session.start() 提前到这里，空闲私有提交
-# 661.6 → 283.0 MB、识别峰值 1695.9 → 1305.9 MB，任务耗时（观星 28.5 s）不变。
-os.environ.setdefault("OMP_NUM_THREADS", str(min(4, os.cpu_count() or 4)))
+# 2026-11-09 同条件 5 轮实测（观星，游戏内，check 后 python 私有提交 / 任务耗时）：
+#   16 线程 561.3 MB / 15.7 s   8 线程 303.6 MB / 15.4 s   4 线程 174.9 MB / 18.2 s
+# 4 线程为多省 128 MB 牺牲了 18% 耗时，属过度优化；8 线程在耗时上不输 16 线程，
+# 且省 258 MB，故取 8。
+os.environ.setdefault("OMP_NUM_THREADS", str(min(8, os.cpu_count() or 8)))
 
 import argparse
 import json

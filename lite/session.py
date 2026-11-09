@@ -222,7 +222,7 @@ class LiteSession:
         # count vs ~1.1 GB at 4 threads, while throughput is unchanged
         # (511 ms/op at 4 vs 544 ms at 16 -- if anything slightly better).
         # Cap it unless the caller pinned a value.
-        os.environ.setdefault("OMP_NUM_THREADS", str(min(4, os.cpu_count() or 4)))
+        os.environ.setdefault("OMP_NUM_THREADS", str(min(8, os.cpu_count() or 8)))
 
         from maa.agent_client import AgentClient
         from maa.controller import AdbController
