@@ -1,0 +1,83 @@
+{
+ "version": "MaaYuan-Lite-0.3.13",
+ "stamp": "20261111-073412",
+ "root_pid": 2520,
+ "port": 8765,
+ "startup_s": {
+  "window": 0.97,
+  "port": 1.32,
+  "api_state": 1.34,
+  "settings": 1.34,
+  "plan": 1.34,
+  "options_all": 1.35,
+  "meta": 1.35
+ },
+ "csv": "lite-0313-20261111-073412.csv",
+ "idle": {
+  "samples": 15,
+  "procs": 3,
+  "private_avg_mb": 280.9,
+  "private_peak_mb": 288.6,
+  "ws_avg_mb": 225.2,
+  "ws_peak_mb": 232.6,
+  "cpu_avg_pct": 2.9
+ },
+ "wall_s": 762.7,
+ "status": "completed",
+ "summary": {
+  "succeeded": 8,
+  "failed": 0,
+  "skipped": 0
+ },
+ "tasks": [
+  {
+   "name": "🚀 启动游戏",
+   "status": "succeeded",
+   "duration": 81.6
+  },
+  {
+   "name": "💰 领月卡福利",
+   "status": "succeeded",
+   "duration": 22.5
+  },
+  {
+   "name": "🏯 据点日常",
+   "status": "succeeded",
+   "duration": 110.2
+  },
+  {
+   "name": "🔮 观星",
+   "status": "succeeded",
+   "duration": 27.8
+  },
+  {
+   "name": "📜 鸢报四连 - 日常专用",
+   "status": "succeeded",
+   "duration": 272.1
+  },
+  {
+   "name": "💎 修为历练",
+   "status": "succeeded",
+   "duration": 40.6
+  },
+  {
+   "name": "🗡 白鹄扫荡",
+   "status": "succeeded",
+   "duration": 32.8
+  },
+  {
+   "name": "🔶 日常收尾",
+   "status": "succeeded",
+   "duration": 169.8
+  }
+ ],
+ "run": {
+  "samples": 382,
+  "procs": 10,
+  "private_avg_mb": 1471.0,
+  "private_peak_mb": 1631.8,
+  "ws_avg_mb": 776.7,
+  "ws_peak_mb": 892.9,
+  "cpu_avg_pct": 17.0
+ }
+}
