@@ -83,6 +83,35 @@ class ScopeTest(unittest.TestCase):
             )
         )
 
+    def test_house_interact_clicks_cabinet(self):
+        """家具互动：上游点 [538,505]（床）会落在躺床的心纸君身上，改点矮柜 (360,404)。
+
+        2026-11-10 实测：点矮柜后 interact.png 命中 0.9892；点床命中 0.9431 但角色躺床上时失效。
+        覆盖只改 action.target，Click 类型与其余参数由框架继承原节点。
+        """
+        lite, report = apply_scope(self.interface, self.scope, self.overrides)
+        task = next(t for t in lite["task"] if t["name"] == "🔶 日常收尾")
+        node = task["pipeline_override"]["开始家具互动"]
+        self.assertEqual(node["action"]["param"]["target"], [344, 388, 32, 32])
+        self.assertNotIn("recognition", node)
+
+        # 上游资源不能改：base 节点仍是点床
+        raw = json.loads(
+            (ROOT / "assets/resource/base/pipeline/daily/house.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            raw["开始家具互动"]["action"]["param"]["target"], [538, 505, 58, 57]
+        )
+
+        self.assertTrue(
+            any(
+                item["task"] == "🔶 日常收尾" and "开始家具互动" in item["nodes"]
+                for item in report["pipeline_overrides"]
+            )
+        )
+
     def test_ocr_quantization_is_forbidden(self):
         self.assertEqual(
             self.scope["constraints"]["ocr_model_quantization"], "forbidden"

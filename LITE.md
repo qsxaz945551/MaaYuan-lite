@@ -68,6 +68,7 @@ python lite/apply_scope.py
 | 任务 | 节点 | 覆盖 | 原因 |
 |---|---|---|---|
 | 🏯 据点日常 | `无行囊check` | `recognition.param.only_rec = true` | `en` 模型只有 `rec.onnx`、没有 `det.onnx`，而该节点是 30 个 `en` 节点里唯一没开 `only_rec` 的，日志报 `Failed to load det or rec: [name=en]`，`ocrer_` 为空导致守卫永不命中 |
+| 🔶 日常收尾 | `开始家具互动` | `action.param.target = [344, 388, 32, 32]`（矮柜中心 360,404） | 上游点 `[538,505]`（床）；心纸君躺床上时会点到角色身上，家具没被点到就不浮出互动图标，`进行家具互动` 必然失败。实测点矮柜后 `interact.png` 命中 0.9892 |
 
 该覆盖会在生成 `build/generated/interface.json` 时自动合并，可直接被任务级 `pipeline_override` 使用，不修改上游资源 JSON。合并语义由框架的 `PipelineParser::parse_recognition` 决定：`recognition` 里省略 `type` 时继承原节点类型，`param` 中未写的字段也继承原值，所以只写一个 `only_rec` 不会冲掉 `model` / `expected` / `roi` / `replace`。
 
