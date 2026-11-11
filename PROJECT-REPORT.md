@@ -758,7 +758,7 @@ python devtools/smoke/inject_fault.py <fault>      # Q2 故障注入（emulator/
 
 ---
 
-## 月卡商店 20 体未领取（2026-11-11 排查）
+## 月卡商店 20 体未领取（2026-11-11 排查 + 0.3.14 修复）
 
 用户反馈本轮没领「商城-月卡商店-体力」，后来手动补领。查日志与错误截图后定位为**点击落在红点上**。
 
@@ -776,8 +776,17 @@ python devtools/smoke/inject_fault.py <fault>      # Q2 故障注入（emulator/
 （`[531,232]` 距红点中心不到 2 px）。红点作为角标吃掉点击，标签页没切换。11-10 同一节点成功过 2 次，
 是因为随机点落在了标签本体上——属概率性失败。
 
-**建议修法（待确认）**：覆盖 `领月卡商店20体` 的 `action.param.target = [500,250,30,24]`，
-把点击固定到标签本体，避开红点；识别仍用原模板，红点消失时照旧不匹配。
+### 已采用的修法（0.3.14）
+
+覆盖 `领月卡商店20体` 的 `action.param.target = [500,250,30,24]`，把点击固定到标签本体
+（y 从 250 起，完全避开红点的 220–242）；识别仍用原模板 `subs20_before_collect.png`，
+红点消失时照旧不匹配、按原逻辑跳到 60 体。
+
+只覆盖 `target`：`parse_action` 在省略 `type` 时回落 `parent_type`（仍是 Click），
+`param` 缺省字段取 `parent_param`，`post_wait_freezes` / `timeout` / `next` / `on_error` 均继承原节点。
+
+上游 `subscription.json` 未改动（`action.param` 仍是空对象），覆盖写在
+`lite/pipeline-overrides.json`，资源更新不会覆盖。
 
 ---
 

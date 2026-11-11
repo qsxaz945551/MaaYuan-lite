@@ -63,12 +63,13 @@ python lite/apply_scope.py
 
 ## 已加入的首个稳定性修复
 
-`lite/pipeline-overrides.json` 是任务级单点覆盖的入口（只改实测确认的节点，不动上游资源）。当前一条：
+`lite/pipeline-overrides.json` 是任务级单点覆盖的入口（只改实测确认的节点，不动上游资源）。当前三条：
 
 | 任务 | 节点 | 覆盖 | 原因 |
 |---|---|---|---|
 | 🏯 据点日常 | `无行囊check` | `recognition.param.only_rec = true` | `en` 模型只有 `rec.onnx`、没有 `det.onnx`，而该节点是 30 个 `en` 节点里唯一没开 `only_rec` 的，日志报 `Failed to load det or rec: [name=en]`，`ocrer_` 为空导致守卫永不命中 |
 | 🔶 日常收尾 | `开始家具互动` | `action.param.target = [344, 388, 32, 32]`（矮柜中心 360,404） | 上游点 `[538,505]`（床）；心纸君躺床上时会点到角色身上，家具没被点到就不浮出互动图标，`进行家具互动` 必然失败。实测点矮柜后 `interact.png` 命中 0.9892 |
+| 💰 领月卡福利 | `领月卡商店20体` | `action.param.target = [500, 250, 30, 24]`（标签本体，避开红点） | 模板 `subs20_before_collect.png` 自带红点角标，识别框 `[480,227,68,58]` 把红点也框进去；无 `target` 的 Click 在框内随机取点，2026-11-11 落在红点 `(531,232)` 被角标吃掉，标签页没切过去，随后「免费」按钮 OCR 读到的是商城价格「6元40元」 |
 
 该覆盖会在生成 `build/generated/interface.json` 时自动合并，可直接被任务级 `pipeline_override` 使用，不修改上游资源 JSON。合并语义由框架的 `PipelineParser::parse_recognition` 决定：`recognition` 里省略 `type` 时继承原节点类型，`param` 中未写的字段也继承原值，所以只写一个 `only_rec` 不会冲掉 `model` / `expected` / `roi` / `replace`。
 

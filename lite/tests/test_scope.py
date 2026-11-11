@@ -112,6 +112,38 @@ class ScopeTest(unittest.TestCase):
             )
         )
 
+    def test_monthly_shop_clicks_tab_body(self):
+        """月卡商店 20 体：模板自带红点，随机取点会落到角标上，需固定点标签本体。
+
+        2026-11-11：模板命中 [480,227,68,58]，随机点落在 (531,232) 的红点，
+        标签页没切换，随后「免费」按钮识别到的是商城价格「6元40元」。
+        """
+        lite, report = apply_scope(self.interface, self.scope, self.overrides)
+        task = next(t for t in lite["task"] if t["name"] == "💰 领月卡福利")
+        node = task["pipeline_override"]["领月卡商店20体"]
+        self.assertEqual(node["action"]["param"]["target"], [500, 250, 30, 24])
+        self.assertNotIn("recognition", node)
+
+        # 红点在 y 220–242，覆盖区必须完全避开
+        _, y, _, h = node["action"]["param"]["target"]
+        self.assertGreaterEqual(y, 243)
+        self.assertGreater(h, 0)
+
+        # 上游资源不能改：base 节点仍是空 param（随机点）
+        raw = json.loads(
+            (ROOT / "assets/resource/base/pipeline/daily/subscription.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(raw["领月卡商店20体"]["action"]["param"], {})
+
+        self.assertTrue(
+            any(
+                item["task"] == "💰 领月卡福利" and "领月卡商店20体" in item["nodes"]
+                for item in report["pipeline_overrides"]
+            )
+        )
+
     def test_ocr_quantization_is_forbidden(self):
         self.assertEqual(
             self.scope["constraints"]["ocr_model_quantization"], "forbidden"
