@@ -79,6 +79,45 @@ class ActivityPageTest(unittest.TestCase):
         self.assertEqual(recognition["param"]["template"], ACTIVITY_TITLE_TEMPLATE)
         self.assertEqual(recognition["param"]["threshold"], ACTIVITY_TITLE_THRESHOLD)
 
+    def test_enter_activity_page_drops_the_exit_fallback(self):
+        """活动下线后 `进入界面-活动` 会与 `退出各类popups` 互相震荡，必须断开。
+
+        2026-11-12：卡面 0.55（阈值 0.72）匹配不上 → 判页全失败 →
+        `退出各类popups` 命中 `返回主界面` 把界面退出去 → `[JumpBack]` 回来重试 →
+        该节点跑了 121 次、收尾 790.9 s 后判失败。
+        """
+        override = apply_pipeline_fixes("日常收尾启动", {})
+        next_list = override["进入界面-活动"]["next"]
+
+        self.assertNotIn("[JumpBack]退出各类popups", next_list)
+        self.assertNotIn("退出各类popups", next_list)
+        # 找入口的两条必须留着，活动在线时照常导航
+        self.assertIn("已在界面-活动", next_list)
+        self.assertIn("[JumpBack]找到入口-活动", next_list)
+        self.assertIn("[JumpBack]找到入口-活动2", next_list)
+        # 只改跳转，不动识别
+        self.assertEqual(set(override["进入界面-活动"]), {"next"})
+
+    def test_exit_popups_keeps_its_return_nodes(self):
+        """`退出各类popups` 本身不能动：心纸君/密探/名册都靠它退出再进。"""
+        override = apply_pipeline_fixes("日常收尾启动", {})
+        self.assertNotIn("退出各类popups", override)
+
+    def test_special_training_never_jumpbacks_into_activity(self):
+        """`[JumpBack]进入界面-活动` 失败会把整个节点从头重跑，形成死循环。
+
+        2026-11-12 08:02 / 08:07 两次实测：加了 `stop` 也轮不到，因为控制权
+        被交回节点开头重新遍历。必须改成不带 JumpBack 的普通项。
+        """
+        override = apply_pipeline_fixes("日常收尾启动", {})
+        next_list = override["领取密探特训奖励启动"]["next"]
+
+        self.assertNotIn("[JumpBack]进入界面-活动", next_list)
+        self.assertIn("进入界面-活动", next_list)
+        self.assertEqual(next_list[-1], "stop")
+        # 导航成功后还要再识别一次卡片
+        self.assertEqual(next_list.count("进入密探特训页面"), 2)
+
     def test_scroll_branch_keeps_the_upstream_swipe(self):
         """只换识别，滑动动作由上游保留（override 里不该出现 action）。"""
         override = apply_pipeline_fixes("日常收尾启动", {})
