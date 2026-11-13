@@ -7,6 +7,7 @@ from lite.pipeline_fixes import (
     ACTIVITY_TITLE_ROI,
     ACTIVITY_TITLE_TEMPLATE,
     ACTIVITY_TITLE_THRESHOLD,
+    EVENT_ICON_TEMPLATE,
     SPECIAL_TRAINING_TEMPLATE,
     SPECIAL_TRAINING_THRESHOLD,
     apply_pipeline_fixes,
@@ -42,33 +43,64 @@ class PipelineFixesTest(unittest.TestCase):
 class ActivityPageTest(unittest.TestCase):
     """活动页判页修的是「OCR 读不出书法体标题 → 退出活动页 → 死循环」。"""
 
-    def test_page_is_detected_by_training_card(self):
+    def test_page_is_detected_by_activity_title(self):
+        """判页必须用页面标题「活动」，不能用卡片标题。
+
+        2026-11-12 的 790.9 s 死循环根因就是把判页锚点换成了卡片上的「密探」二字：
+        卡片随活动换期改版，掉到 0.55，判页全失败 → 落到 `退出各类popups` → 震荡。
+        「活动」标题不随换期变化（2026-11-13 复测 1.0000）。
+        """
         override = apply_pipeline_fixes("日常收尾启动", {})
         recognition = override["已在界面-活动"]["recognition"]
 
         self.assertEqual(recognition["type"], "TemplateMatch")
-        self.assertEqual(
+        self.assertEqual(recognition["param"]["template"], ACTIVITY_TITLE_TEMPLATE)
+        self.assertNotEqual(
             recognition["param"]["template"], SPECIAL_TRAINING_TEMPLATE
         )
 
-    def test_page_check_covers_the_whole_card_area(self):
-        """卡片在活动页里是纵向滚动的，ROI 必须覆盖整片可滚动区域。"""
+    def test_page_check_uses_the_title_roi(self):
+        """标题在页面顶部固定位置，ROI 跟 `已在界面-活动-向下滑` 用同一块。"""
         override = apply_pipeline_fixes("日常收尾启动", {})
         roi = override["已在界面-活动"]["recognition"]["param"]["roi"]
 
-        self.assertLessEqual(roi[0], 10)
-        self.assertGreaterEqual(roi[2], 700)
-        self.assertGreaterEqual(roi[3], 800)
+        self.assertEqual(roi, ACTIVITY_TITLE_ROI)
 
-    def test_card_threshold_has_margin(self):
-        """实测命中分 0.810，阈值必须留出余量而不是卡在 0.8。"""
+    def test_activity_entry_uses_the_lite_icon(self):
+        """主界面活动入口的图标改版过，上游 `eventicon.png` 只剩 0.56（阈值 0.6）。"""
         override = apply_pipeline_fixes("日常收尾启动", {})
+        template = override["找到入口-活动"]["recognition"]["param"]["template"]
 
-        self.assertEqual(
-            override["进入密探特训页面"]["recognition"]["param"]["threshold"],
-            SPECIAL_TRAINING_THRESHOLD,
-        )
+        self.assertEqual(template, EVENT_ICON_TEMPLATE)
+        self.assertNotEqual(template, "eventicon.png")
+
+    def test_card_uses_the_current_period_template(self):
+        """卡片标题也要换成当期那张：上游版本跨了两期，只剩 0.56（阈值 0.72）。"""
+        override = apply_pipeline_fixes("日常收尾启动", {})
+        param = override["进入密探特训页面"]["recognition"]["param"]
+
+        self.assertEqual(param["template"], SPECIAL_TRAINING_TEMPLATE)
+        self.assertEqual(param["threshold"], SPECIAL_TRAINING_THRESHOLD)
         self.assertLess(SPECIAL_TRAINING_THRESHOLD, 0.8)
+
+    def test_lite_templates_exist_and_are_guarded(self):
+        """自制模板必须真的存在、挂在 extras 清单里，且源码备份与运行时副本一致。
+
+        `assets/resource` 不入库，只有本地和发布包里才有。`lite/templates` 是
+        入库的源码备份，打包时补进产物 —— 两者脱钩的话重装仓库就会悄悄退回旧图。
+        """
+        from lite.update_applier import RESOURCE_EXTRAS
+
+        for name in (SPECIAL_TRAINING_TEMPLATE, EVENT_ICON_TEMPLATE, ACTIVITY_TITLE_TEMPLATE):
+            with self.subTest(template=name):
+                live = ROOT / "assets/resource/base/image" / name
+                backup = ROOT / "lite" / "templates" / name
+                self.assertTrue(live.is_file(), f"{name} 缺失（运行时副本）")
+                self.assertTrue(backup.is_file(), f"{name} 缺失（lite/templates 备份）")
+                self.assertEqual(
+                    live.read_bytes(), backup.read_bytes(), f"{name} 两份内容不一致"
+                )
+                self.assertIn(f"image/{name}", RESOURCE_EXTRAS)
 
     def test_scroll_branch_uses_the_title_template(self):
         """卡片在折叠线下方时要靠「向下滑」，而这条分支原来用 OCR 认书法体。"""
@@ -79,44 +111,21 @@ class ActivityPageTest(unittest.TestCase):
         self.assertEqual(recognition["param"]["template"], ACTIVITY_TITLE_TEMPLATE)
         self.assertEqual(recognition["param"]["threshold"], ACTIVITY_TITLE_THRESHOLD)
 
-    def test_enter_activity_page_drops_the_exit_fallback(self):
-        """活动下线后 `进入界面-活动` 会与 `退出各类popups` 互相震荡，必须断开。
+    def test_navigation_next_lists_are_left_alone(self):
+        """不能动 `进入界面-活动` / `领取密探特训奖励启动` 的 next。
 
-        2026-11-12：卡面 0.55（阈值 0.72）匹配不上 → 判页全失败 →
-        `退出各类popups` 命中 `返回主界面` 把界面退出去 → `[JumpBack]` 回来重试 →
-        该节点跑了 121 次、收尾 790.9 s 后判失败。
+        2026-11-12 死循环时曾删掉 `[JumpBack]退出各类popups` 并改写导航项，
+        方向错了：那个兜底正是"从别的界面退回主界面再点活动入口"的唯一手段。
+        删掉后只要当前不在活动页（例如刚做完小道消息），`找到入口-活动` 就
+        永远找不到 —— 2026-11-13 08:01 实测连续失败 20 次，奖励一次也没领到。
+
+        死循环的真正根因是判页锚点，判页改对后兜底就不会被误触发。
         """
         override = apply_pipeline_fixes("日常收尾启动", {})
-        next_list = override["进入界面-活动"]["next"]
 
-        self.assertNotIn("[JumpBack]退出各类popups", next_list)
-        self.assertNotIn("退出各类popups", next_list)
-        # 找入口的两条必须留着，活动在线时照常导航
-        self.assertIn("已在界面-活动", next_list)
-        self.assertIn("[JumpBack]找到入口-活动", next_list)
-        self.assertIn("[JumpBack]找到入口-活动2", next_list)
-        # 只改跳转，不动识别
-        self.assertEqual(set(override["进入界面-活动"]), {"next"})
-
-    def test_exit_popups_keeps_its_return_nodes(self):
-        """`退出各类popups` 本身不能动：心纸君/密探/名册都靠它退出再进。"""
-        override = apply_pipeline_fixes("日常收尾启动", {})
+        self.assertNotIn("进入界面-活动", override)
+        self.assertNotIn("领取密探特训奖励启动", override)
         self.assertNotIn("退出各类popups", override)
-
-    def test_special_training_never_jumpbacks_into_activity(self):
-        """`[JumpBack]进入界面-活动` 失败会把整个节点从头重跑，形成死循环。
-
-        2026-11-12 08:02 / 08:07 两次实测：加了 `stop` 也轮不到，因为控制权
-        被交回节点开头重新遍历。必须改成不带 JumpBack 的普通项。
-        """
-        override = apply_pipeline_fixes("日常收尾启动", {})
-        next_list = override["领取密探特训奖励启动"]["next"]
-
-        self.assertNotIn("[JumpBack]进入界面-活动", next_list)
-        self.assertIn("进入界面-活动", next_list)
-        self.assertEqual(next_list[-1], "stop")
-        # 导航成功后还要再识别一次卡片
-        self.assertEqual(next_list.count("进入密探特训页面"), 2)
 
     def test_scroll_branch_keeps_the_upstream_swipe(self):
         """只换识别，滑动动作由上游保留（override 里不该出现 action）。"""

@@ -25,17 +25,25 @@ from .deepmerge import deep_merge
 # so the check silently misses and the run keeps retrying other nodes.
 STAMINA_DIALOG_TEXTS = ["体力回复", "用道具回复", "用日金市回复"]
 
-# 密探特训卡面：`进入密探特训页面` 靠它定位卡片，活动页判定也改用它。
-# 2026-11-06 08:18 的失败截图上实测命中分 0.810，上游阈值 0.8 只剩 0.01
-# 余量 —— 亮度或卡面动画稍有一变就会掉线，所以统一降到 0.72。
-SPECIAL_TRAINING_TEMPLATE = "special_training.png"
+# 密探特训卡片的标题「密探」二字。上游 `special_training.png` 取自更早的一期，
+# 2026-11-13 实测只剩 0.56（阈值 0.72）—— 每期换卡面就会掉线，这是活动的固有节奏，
+# 不是 UI 改版。这里换成 Lite 自制的同位置模板（当期二十八期，自匹配 1.000、
+# 首屏/主界面/据点页 0.33–0.36），并在 RESOURCE_EXTRAS 里保护，资源更新不会冲掉。
+# **每期换卡面后仍需更新这张图**：截图 → 裁「密探」二字（约 88x50）→ 覆盖即可。
+SPECIAL_TRAINING_TEMPLATE = "lite_special_training.png"
 SPECIAL_TRAINING_ROI = [2, 317, 717, 849]
 SPECIAL_TRAINING_THRESHOLD = 0.72
 
+# 主界面右侧「活动」入口图标。上游 `eventicon.png` 是旧版的金色卷轴，
+# 2026-11-13 实测在 `找到入口-活动` 的 ROI 里只有 0.5611（阈值 0.6）—— 游戏改版后
+# 入口换成了金色礼盒。这张取自当前截图（避开右上角红点，红点领完会消失），
+# 主界面 1.000、活动页/据点页 0.43–0.48。
+EVENT_ICON_TEMPLATE = "lite_event_icon.png"
+
 # 活动页的「活动」标题是书法体，OCR 从来没读对过（2026-11-06 当日 13 次尝试
-# 全灭），于是 `已在界面-活动-向下滑` 一次也没触发过 —— 卡片只要在折叠线下方，
-# 就永远滑不到。标题本身是静止的背景画，用模板匹配稳定得多。
-# 图取自 2026-11-07 10:05 的原生截图，OpenCV 自匹配 1.000、异页 0.23。
+# 全灭）。标题本身是静止的背景画，用模板匹配稳定得多。
+# 图取自 2026-11-07 10:05 的原生截图，2026-11-13 复测活动页仍是 1.0000 ——
+# 这个标题不随活动换期，是判页最稳的锚点。
 ACTIVITY_TITLE_TEMPLATE = "activity_title.png"
 ACTIVITY_TITLE_ROI = [250, 230, 220, 140]
 ACTIVITY_TITLE_THRESHOLD = 0.8
@@ -49,22 +57,36 @@ NEW_NODES: dict[str, set[str]] = {
 FIXES: dict[str, dict[str, Any]] = {
     # 日常收尾：领取密探特训奖励（2026-11-06 实跑失败后定位）
     "日常收尾启动": {
-        # 卡面在屏上也判不出来，阈值太紧。
+        # 卡片标题换成当期的模板（上游那张已经过期两期了）。
         "进入密探特训页面": {
-            "recognition": {"param": {"threshold": SPECIAL_TRAINING_THRESHOLD}}
+            "recognition": {
+                "param": {
+                    "template": SPECIAL_TRAINING_TEMPLATE,
+                    "threshold": SPECIAL_TRAINING_THRESHOLD,
+                }
+            }
         },
-        # 活动页标题「活动」是书法体，OCR 从来没读对过（当日 13 次尝试，
-        # 读成 "_" 0.82 / "1" 0.60）。判页一旦失败，`进入界面-活动` 就会落到
-        # 末位 DirectHit 的 `退出各类popups`，命中 `返回主界面` 把刚进来的活动页
-        # 关掉，再进再失败 —— 死循环。卡面模板是这一页上更硬的锚点：
-        # 卡片在屏上就说明已经在活动页，不必再退出重进。
+        # 主界面活动入口换成当前版本的图标。
+        "找到入口-活动": {
+            "recognition": {"param": {"template": EVENT_ICON_TEMPLATE}}
+        },
+        # 判页必须用**页面标题**而不是卡片标题。
+        #
+        # 2026-11-06 这里被改成了 `special_training.png`（卡片上的「密探」二字），
+        # 理由是"卡片在屏上就说明已经在活动页"。但卡片会随活动换期改版，
+        # 2026-11-12 掉到 0.55，判页全失败 → `进入界面-活动` 落到末位 DirectHit 的
+        # `退出各类popups`，命中 `返回主界面` 把界面退出去，再进再失败 ——
+        # 死循环跑了 121 次、790.9 s。
+        #
+        # 「活动」二字是活动列表页的固定标题，不随换期变化（2026-11-13 复测 1.0000），
+        # 而且 `已在界面-活动-向下滑` 一直在用它。判页改回它，卡片在不在首屏都不影响。
         "已在界面-活动": {
             "recognition": {
                 "type": "TemplateMatch",
                 "param": {
-                    "template": SPECIAL_TRAINING_TEMPLATE,
-                    "roi": list(SPECIAL_TRAINING_ROI),
-                    "threshold": SPECIAL_TRAINING_THRESHOLD,
+                    "template": ACTIVITY_TITLE_TEMPLATE,
+                    "roi": list(ACTIVITY_TITLE_ROI),
+                    "threshold": ACTIVITY_TITLE_THRESHOLD,
                 },
             }
         },
@@ -79,49 +101,21 @@ FIXES: dict[str, dict[str, Any]] = {
                 },
             }
         },
-        # 活动下线后卡面不在屏上（2026-11-12 实测最高 0.55，阈值 0.72），上面两条
-        # 判页全失败就只剩 `退出各类popups` 兜底。
+        # 这里**不能**动 `进入界面-活动` 和 `领取密探特训奖励启动` 的 next。
         #
-        # 那个兜底是 DirectHit，落在活动页时会命中 `返回主界面` / `返回上级界面`，
-        # 把界面退出去，然后 `[JumpBack]` 回到 `进入界面-活动` 重试 —— 进不去就退、
-        # 退了再进，无限震荡。2026-11-12 收尾因此跑了 790.9 s，`进入界面-活动` 执行
-        # 121 次，最后靠 NodeRepeatGuard 的 120 次预算才中止（任务判失败）。
+        # 2026-11-12 死循环时曾把 `进入界面-活动.next` 末位的 `[JumpBack]退出各类popups`
+        # 删掉、并把导航项改成不带 JumpBack 的普通项 + `stop`。方向错了：
+        # 那个兜底正是"从别的界面退回主界面再点活动入口"的唯一手段，
+        # 删掉之后只要当前不在活动页（例如刚做完小道消息），`找到入口-活动` 就
+        # 永远找不到——2026-11-13 08:01 实测连续失败 20 次，奖励一次也没领到。
         #
-        # 不能用 max_hit 限流：MaaFramework 5.6.0 只在 PipelineParser 里解析这个字段，
-        # PipelineTask/Context 没有任何 hit 计数检查，上游那 50 处 `max_hit: 1` 在
-        # 这个版本同样无效（实测 override 已下发 `{"max_hit": 3}`，仍循环不停）。
+        # 死循环的真正根因是**判页锚点选错了**（用卡片标题判"是否在活动页"）；
+        # 判页改回页面标题后，在活动页时必然命中，也就不会落到退出兜底上。
+        # 兜底保留原样，导航链路才完整。
         #
-        # 所以砍掉 `[JumpBack]退出各类popups`：找不到入口就直接失败返回。
-        #
-        # 光砍这一条还不够 —— 实测（2026-11-12 08:02 / 08:07 两次）`进入界面-活动`
-        # 失败后整个 `领取密探特训奖励启动` 会从头重跑，周期从 6 s 变成 20 s，
-        # 循环本身没断。原因是 `[JumpBack]X` 失败会把控制权交回当前节点重新遍历，
-        # 末尾再加 `stop` 也永远轮不到。
-        #
-        # 所以这里把导航项改成**不带 JumpBack** 的普通项：执行完无论成败都继续
-        # 遍历 next，不会再回到开头。代价是导航成功后要再点一次卡片，因此
-        # `进入密探特训页面` 出现两次。
-        #
-        # 触发前提是界面里「领取密探特训奖励」选了 Yes（默认 No，即上游的
-        # enabled: false）；活动下线时选 Yes 就会走到这条降级路径，
-        # 现在最多花一次导航的时间（约 20 s）就按 `stop` 收场。
-        "进入界面-活动": {
-            "next": [
-                "已在界面-活动",
-                "[JumpBack]找到入口-活动",
-                "[JumpBack]找到入口-活动2",
-            ]
-        },
-        "领取密探特训奖励启动": {
-            "next": [
-                "进入密探特训页面",
-                "[JumpBack]已在界面-活动-向下滑",
-                "进入界面-活动",
-                # 导航成功后要再识别一次卡片（导航项不再 JumpBack 回来）
-                "进入密探特训页面",
-                "stop",
-            ]
-        },
+        # 附带确认：`max_hit` 限流在 MaaFramework 5.6.0 无效——它只在
+        # PipelineParser 里被解析，PipelineTask / Context 没有任何 hit 计数检查，
+        # 上游那 50 处 `max_hit: 1` 在这个版本同样不起作用。别再走这条路。
     },
     # 鸢报四连：批量收集要等倒计时（2026-11-06 21:57 实跑失败后定位）
     #
