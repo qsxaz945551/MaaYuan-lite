@@ -1,0 +1,451 @@
+{
+ "version": "MaaYuan-Lite-0.3.16",
+ "stamp": "20261118-080554",
+ "task": "🚀 启动游戏",
+ "rounds": [
+  {
+   "round": 1,
+   "status": "completed",
+   "wall_s": 74.6,
+   "startup_s": {
+    "window": 0.71,
+    "port": 1.02,
+    "api": 1.04
+   },
+   "samples": 79,
+   "start_private_mb": 102.6,
+   "peak_mb": 1722.6,
+   "plateau_mb": 1486.0,
+   "steps": [
+    [
+     2.0,
+     103,
+     292,
+     875
+    ],
+    [
+     3.9,
+     307,
+     522,
+     882
+    ],
+    [
+     7.8,
+     731,
+     938,
+     1000
+    ],
+    [
+     35.5,
+     1160,
+     1666,
+     1578
+    ]
+   ],
+   "vram_start_mb": 874,
+   "vram_peak_mb": 1790,
+   "vram_at_private_peak": 1636
+  },
+  {
+   "round": 2,
+   "status": "completed",
+   "wall_s": 74.5,
+   "startup_s": {
+    "window": 0.71,
+    "port": 1.02,
+    "api": 1.03
+   },
+   "samples": 78,
+   "start_private_mb": 102.6,
+   "peak_mb": 1378.3,
+   "plateau_mb": 1148.5,
+   "steps": [
+    [
+     3.0,
+     103,
+     305,
+     884
+    ],
+    [
+     3.9,
+     305,
+     518,
+     895
+    ],
+    [
+     7.7,
+     709,
+     941,
+     997
+    ],
+    [
+     33.5,
+     1156,
+     1364,
+     1402
+    ]
+   ],
+   "vram_start_mb": 883,
+   "vram_peak_mb": 1530,
+   "vram_at_private_peak": 1414
+  },
+  {
+   "round": 3,
+   "status": "completed",
+   "wall_s": 74.5,
+   "startup_s": {
+    "window": 0.71,
+    "port": 1.02,
+    "api": 1.02
+   },
+   "samples": 79,
+   "start_private_mb": 101.8,
+   "peak_mb": 1342.2,
+   "plateau_mb": 1163.7,
+   "steps": [
+    [
+     2.0,
+     102,
+     296,
+     873
+    ],
+    [
+     3.9,
+     305,
+     520,
+     885
+    ],
+    [
+     7.7,
+     672,
+     939,
+     992
+    ],
+    [
+     35.4,
+     1160,
+     1342,
+     1413
+    ]
+   ],
+   "vram_start_mb": 872,
+   "vram_peak_mb": 1477,
+   "vram_at_private_peak": 1413
+  },
+  {
+   "round": 4,
+   "status": "completed",
+   "wall_s": 76.4,
+   "startup_s": {
+    "window": 0.71,
+    "port": 1.02,
+    "api": 1.02
+   },
+   "samples": 81,
+   "start_private_mb": 102.5,
+   "peak_mb": 1337.3,
+   "plateau_mb": 1158.1,
+   "steps": [
+    [
+     2.0,
+     102,
+     299,
+     887
+    ],
+    [
+     3.9,
+     334,
+     525,
+     898
+    ],
+    [
+     7.7,
+     733,
+     940,
+     994
+    ],
+    [
+     35.4,
+     1161,
+     1337,
+     1405
+    ]
+   ],
+   "vram_start_mb": 886,
+   "vram_peak_mb": 1483,
+   "vram_at_private_peak": 1405
+  },
+  {
+   "round": 5,
+   "status": "completed",
+   "wall_s": 76.5,
+   "startup_s": {
+    "window": 0.77,
+    "port": 1.02,
+    "api": 1.02
+   },
+   "samples": 81,
+   "start_private_mb": 101.6,
+   "peak_mb": 1342.5,
+   "plateau_mb": 1163.8,
+   "steps": [
+    [
+     2.0,
+     102,
+     290,
+     873
+    ],
+    [
+     3.9,
+     304,
+     519,
+     885
+    ],
+    [
+     7.7,
+     696,
+     938,
+     997
+    ],
+    [
+     35.4,
+     1150,
+     1342,
+     1408
+    ]
+   ],
+   "vram_start_mb": 872,
+   "vram_peak_mb": 1471,
+   "vram_at_private_peak": 1408
+  },
+  {
+   "round": 6,
+   "status": "completed",
+   "wall_s": 76.4,
+   "startup_s": {
+    "window": 0.71,
+    "port": 1.02,
+    "api": 1.02
+   },
+   "samples": 81,
+   "start_private_mb": 102.8,
+   "peak_mb": 1632.3,
+   "plateau_mb": 1425.5,
+   "steps": [
+    [
+     2.0,
+     103,
+     288,
+     889
+    ],
+    [
+     3.9,
+     305,
+     518,
+     900
+    ],
+    [
+     7.7,
+     731,
+     937,
+     996
+    ],
+    [
+     31.6,
+     1000,
+     1154,
+     1261
+    ],
+    [
+     35.4,
+     1148,
+     1627,
+     1624
+    ]
+   ],
+   "vram_start_mb": 888,
+   "vram_peak_mb": 1759,
+   "vram_at_private_peak": 1631
+  },
+  {
+   "round": 7,
+   "status": "completed",
+   "wall_s": 75.4,
+   "startup_s": {
+    "window": 0.71,
+    "port": 1.02,
+    "api": 1.02
+   },
+   "samples": 80,
+   "start_private_mb": 102.0,
+   "peak_mb": 1709.9,
+   "plateau_mb": 1562.6,
+   "steps": [
+    [
+     2.0,
+     102,
+     297,
+     879
+    ],
+    [
+     4.8,
+     418,
+     576,
+     890
+    ],
+    [
+     7.7,
+     651,
+     929,
+     998
+    ],
+    [
+     35.3,
+     1169,
+     1710,
+     1634
+    ]
+   ],
+   "vram_start_mb": 878,
+   "vram_peak_mb": 1711,
+   "vram_at_private_peak": 1634
+  },
+  {
+   "round": 8,
+   "status": "completed",
+   "wall_s": 81.3,
+   "startup_s": {
+    "window": 0.76,
+    "port": 1.02,
+    "api": 1.03
+   },
+   "samples": 86,
+   "start_private_mb": 103.2,
+   "peak_mb": 1709.0,
+   "plateau_mb": 1606.0,
+   "steps": [
+    [
+     2.0,
+     103,
+     295,
+     893
+    ],
+    [
+     3.9,
+     306,
+     517,
+     904
+    ],
+    [
+     7.7,
+     692,
+     939,
+     1007
+    ],
+    [
+     35.5,
+     1178,
+     1709,
+     1629
+    ]
+   ],
+   "vram_start_mb": 892,
+   "vram_peak_mb": 1705,
+   "vram_at_private_peak": 1629
+  },
+  {
+   "round": 9,
+   "status": "completed",
+   "wall_s": 75.5,
+   "startup_s": {
+    "window": 0.76,
+    "port": 1.12,
+    "api": 1.12
+   },
+   "samples": 80,
+   "start_private_mb": 102.7,
+   "peak_mb": 1694.6,
+   "plateau_mb": 1484.7,
+   "steps": [
+    [
+     2.1,
+     103,
+     297,
+     881
+    ],
+    [
+     4.0,
+     307,
+     521,
+     892
+    ],
+    [
+     7.8,
+     742,
+     943,
+     1000
+    ],
+    [
+     32.7,
+     1001,
+     1152,
+     1214
+    ],
+    [
+     36.5,
+     1251,
+     1629,
+     1605
+    ]
+   ],
+   "vram_start_mb": 880,
+   "vram_peak_mb": 1820,
+   "vram_at_private_peak": 1673
+  },
+  {
+   "round": 10,
+   "status": "completed",
+   "wall_s": 77.6,
+   "startup_s": {
+    "window": 0.76,
+    "port": 1.02,
+    "api": 1.02
+   },
+   "samples": 82,
+   "start_private_mb": 102.6,
+   "peak_mb": 1360.9,
+   "plateau_mb": 1161.4,
+   "steps": [
+    [
+     2.0,
+     103,
+     291,
+     872
+    ],
+    [
+     4.9,
+     418,
+     578,
+     889
+    ],
+    [
+     7.7,
+     661,
+     929,
+     1000
+    ],
+    [
+     35.5,
+     1155,
+     1361,
+     1403
+    ]
+   ],
+   "vram_start_mb": 880,
+   "vram_peak_mb": 1484,
+   "vram_at_private_peak": 1403
+  }
+ ],
+ "csv": "coldstart-vram-20261118-080554.csv",
+ "procs_csv": "coldstart-vram-20261118-080554-procs.csv"
+}

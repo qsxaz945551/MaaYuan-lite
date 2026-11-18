@@ -1,0 +1,194 @@
+{
+ "version": "MaaYuan-Lite-0.3.16",
+ "stamp": "20261118-075558",
+ "task": "🚀 启动游戏",
+ "rounds": [
+  {
+   "round": 1,
+   "status": "completed",
+   "wall_s": 76.3,
+   "startup_s": {
+    "window": 0.77,
+    "port": 1.02,
+    "api": 1.04
+   },
+   "samples": 85,
+   "start_private_mb": 101.2,
+   "peak_mb": 1358.8,
+   "plateau_mb": 1167.5,
+   "steps": [
+    [
+     2.0,
+     101,
+     289
+    ],
+    [
+     4.7,
+     417,
+     569
+    ],
+    [
+     7.4,
+     598,
+     924
+    ],
+    [
+     35.6,
+     1167,
+     1344
+    ]
+   ]
+  },
+  {
+   "round": 2,
+   "status": "completed",
+   "wall_s": 75.5,
+   "startup_s": {
+    "window": 0.71,
+    "port": 0.97,
+    "api": 0.98
+   },
+   "samples": 84,
+   "start_private_mb": 101.3,
+   "peak_mb": 1341.5,
+   "plateau_mb": 1162.0,
+   "steps": [
+    [
+     1.9,
+     101,
+     290
+    ],
+    [
+     4.6,
+     414,
+     569
+    ],
+    [
+     7.4,
+     597,
+     925
+    ],
+    [
+     35.5,
+     1124,
+     1340
+    ]
+   ]
+  },
+  {
+   "round": 3,
+   "status": "completed",
+   "wall_s": 73.6,
+   "startup_s": {
+    "window": 0.71,
+    "port": 0.97,
+    "api": 0.98
+   },
+   "samples": 82,
+   "start_private_mb": 103.3,
+   "peak_mb": 1355.3,
+   "plateau_mb": 1163.0,
+   "steps": [
+    [
+     1.9,
+     103,
+     292
+    ],
+    [
+     4.6,
+     420,
+     573
+    ],
+    [
+     7.4,
+     597,
+     928
+    ],
+    [
+     35.5,
+     1134,
+     1340
+    ]
+   ]
+  },
+  {
+   "round": 4,
+   "status": "completed",
+   "wall_s": 85.4,
+   "startup_s": {
+    "window": 0.71,
+    "port": 0.97,
+    "api": 0.98
+   },
+   "samples": 95,
+   "start_private_mb": 102.2,
+   "peak_mb": 2498.7,
+   "plateau_mb": 2013.3,
+   "steps": [
+    [
+     1.9,
+     102,
+     285
+    ],
+    [
+     4.6,
+     419,
+     573
+    ],
+    [
+     7.4,
+     599,
+     932
+    ],
+    [
+     34.6,
+     1172,
+     1714
+    ],
+    [
+     56.4,
+     1594,
+     2491
+    ]
+   ]
+  },
+  {
+   "round": 5,
+   "status": "completed",
+   "wall_s": 75.4,
+   "startup_s": {
+    "window": 0.71,
+    "port": 0.96,
+    "api": 0.97
+   },
+   "samples": 84,
+   "start_private_mb": 102.0,
+   "peak_mb": 1404.9,
+   "plateau_mb": 1152.7,
+   "steps": [
+    [
+     1.9,
+     102,
+     290
+    ],
+    [
+     4.6,
+     419,
+     573
+    ],
+    [
+     7.4,
+     594,
+     926
+    ],
+    [
+     34.6,
+     1136,
+     1405
+    ]
+   ]
+  }
+ ],
+ "csv": "coldstart-20261118-075558.csv",
+ "procs_csv": "coldstart-20261118-075558-procs.csv"
+}

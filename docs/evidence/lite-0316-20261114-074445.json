@@ -1,0 +1,85 @@
+{
+ "version": "MaaYuan-Lite-0.3.16",
+ "stamp": "20261114-074445",
+ "root_pid": 1668,
+ "port": 8765,
+ "startup_s": {
+  "window": 0.97,
+  "port": 1.32,
+  "api_state": 1.35,
+  "settings": 1.35,
+  "plan": 1.35,
+  "options_all": 1.37,
+  "meta": 1.37
+ },
+ "csv": "lite-0316-20261114-074445.csv",
+ "idle": {
+  "samples": 15,
+  "procs": 5,
+  "private_avg_mb": 280.9,
+  "private_peak_mb": 288.1,
+  "ws_avg_mb": 222.3,
+  "ws_peak_mb": 229.6,
+  "cpu_avg_pct": 2.9
+ },
+ "wall_s": 838.9,
+ "status": "completed",
+ "summary": {
+  "succeeded": 8,
+  "failed": 0,
+  "skipped": 0
+ },
+ "tasks": [
+  {
+   "name": "🚀 启动游戏",
+   "status": "succeeded",
+   "duration": 126.7
+  },
+  {
+   "name": "💰 领月卡福利",
+   "status": "succeeded",
+   "duration": 31.0
+  },
+  {
+   "name": "🏯 据点日常",
+   "status": "succeeded",
+   "duration": 105.4
+  },
+  {
+   "name": "🔮 观星",
+   "status": "succeeded",
+   "duration": 28.1
+  },
+  {
+   "name": "📜 鸢报四连 - 日常专用",
+   "status": "succeeded",
+   "duration": 294.8
+  },
+  {
+   "name": "💎 修为历练",
+   "status": "succeeded",
+   "duration": 41.8
+  },
+  {
+   "name": "🗡 白鹄扫荡",
+   "status": "succeeded",
+   "duration": 33.3
+  },
+  {
+   "name": "🔶 日常收尾",
+   "status": "succeeded",
+   "duration": 172.8
+  }
+ ],
+ "run": {
+  "samples": 420,
+  "procs": 10,
+  "private_avg_mb": 1808.0,
+  "private_peak_mb": 1992.4,
+  "ws_avg_mb": 831.3,
+  "ws_peak_mb": 943.6,
+  "cpu_avg_pct": 16.7
+ },
+ "dataset": 4,
+ "note": "启动游戏 126.7s（冷启动含开始界面重复点击 18 次/sub_开始游戏 2 次），同样长启动的 0.3.14（121.0s）run private 也是 1840，短启动的 0.3.13（81.6s）/0.3.15（84.1s）为 1471/1476 —— 内存台阶随启动阶段工作量变化，不是 0.3.16 引入。收尾 172.8s 单次跑完（0.3.15 为 208.6s、节点重复 3 轮），并首次真正走通 进入密探特训页面 → 选择训练任务 → 密探特训一键领取(2) → 关闭密探特训奖励获得页面。"
+}

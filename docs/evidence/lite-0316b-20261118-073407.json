@@ -1,0 +1,85 @@
+{
+ "version": "MaaYuan-Lite-0.3.16",
+ "stamp": "20261118-073407",
+ "root_pid": 7932,
+ "port": 8765,
+ "startup_s": {
+  "window": 1.07,
+  "port": 1.47,
+  "api_state": 1.5,
+  "settings": 1.5,
+  "plan": 1.5,
+  "options_all": 1.51,
+  "meta": 1.51
+ },
+ "csv": "lite-0316b-20261118-073407.csv",
+ "idle": {
+  "samples": 15,
+  "procs": 4,
+  "private_avg_mb": 277.1,
+  "private_peak_mb": 278.0,
+  "ws_avg_mb": 218.0,
+  "ws_peak_mb": 220.1,
+  "cpu_avg_pct": 2.9
+ },
+ "wall_s": 827.2,
+ "status": "completed",
+ "summary": {
+  "succeeded": 8,
+  "failed": 0,
+  "skipped": 0
+ },
+ "tasks": [
+  {
+   "name": "🚀 启动游戏",
+   "status": "succeeded",
+   "duration": 102.9
+  },
+  {
+   "name": "💰 领月卡福利",
+   "status": "succeeded",
+   "duration": 31.1
+  },
+  {
+   "name": "🏯 据点日常",
+   "status": "succeeded",
+   "duration": 108.7
+  },
+  {
+   "name": "🔮 观星",
+   "status": "succeeded",
+   "duration": 27.8
+  },
+  {
+   "name": "📜 鸢报四连 - 日常专用",
+   "status": "succeeded",
+   "duration": 297.2
+  },
+  {
+   "name": "💎 修为历练",
+   "status": "succeeded",
+   "duration": 41.3
+  },
+  {
+   "name": "🗡 白鹄扫荡",
+   "status": "succeeded",
+   "duration": 33.1
+  },
+  {
+   "name": "🔶 日常收尾",
+   "status": "succeeded",
+   "duration": 179.5
+  }
+ ],
+ "run": {
+  "samples": 414,
+  "procs": 10,
+  "private_avg_mb": 2473.0,
+  "private_peak_mb": 2793.1,
+  "ws_avg_mb": 963.2,
+  "ws_peak_mb": 1384.7,
+  "cpu_avg_pct": 18.1
+ },
+ "dataset": 8,
+ "note": "整轮 8/8，827.2 s。月卡 60 体修复验证通过：领月卡60体 点击落 (347,174)（新 target [344,158,24,16] 内），链路 月卡福利-切换普通月卡 → 点击领取月卡60体 → 关闭60体获得界面 全部命中。内存 2473/2793，跃升在 t=93.9 s（启动游戏·心纸君 那一帧）主 python 1148→2490，agent 187 与 WPF 102 全程不变 —— 定位到进程，触发条件仍未明。"
+}

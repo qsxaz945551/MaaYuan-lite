@@ -1,0 +1,85 @@
+{
+ "version": "MaaYuan-Lite-0.3.16",
+ "stamp": "20261117-073454",
+ "root_pid": 18568,
+ "port": 8765,
+ "startup_s": {
+  "window": 1.07,
+  "port": 1.47,
+  "api_state": 1.5,
+  "settings": 1.5,
+  "plan": 1.5,
+  "options_all": 1.51,
+  "meta": 1.52
+ },
+ "csv": "lite-0316b-20261117-073454.csv",
+ "idle": {
+  "samples": 15,
+  "procs": 5,
+  "private_avg_mb": 287.1,
+  "private_peak_mb": 293.8,
+  "ws_avg_mb": 231.0,
+  "ws_peak_mb": 237.2,
+  "cpu_avg_pct": 2.0
+ },
+ "wall_s": 796.9,
+ "status": "completed",
+ "summary": {
+  "succeeded": 8,
+  "failed": 0,
+  "skipped": 0
+ },
+ "tasks": [
+  {
+   "name": "🚀 启动游戏",
+   "status": "succeeded",
+   "duration": 85.4
+  },
+  {
+   "name": "💰 领月卡福利",
+   "status": "succeeded",
+   "duration": 30.1
+  },
+  {
+   "name": "🏯 据点日常",
+   "status": "succeeded",
+   "duration": 104.4
+  },
+  {
+   "name": "🔮 观星",
+   "status": "succeeded",
+   "duration": 29.0
+  },
+  {
+   "name": "📜 鸢报四连 - 日常专用",
+   "status": "succeeded",
+   "duration": 297.0
+  },
+  {
+   "name": "💎 修为历练",
+   "status": "succeeded",
+   "duration": 40.1
+  },
+  {
+   "name": "🗡 白鹄扫荡",
+   "status": "succeeded",
+   "duration": 32.8
+  },
+  {
+   "name": "🔶 日常收尾",
+   "status": "succeeded",
+   "duration": 171.8
+  }
+ ],
+ "run": {
+  "samples": 399,
+  "procs": 11,
+  "private_avg_mb": 1472.9,
+  "private_peak_mb": 1608.9,
+  "ws_avg_mb": 709.4,
+  "ws_peak_mb": 835.5,
+  "cpu_avg_pct": 16.4
+ },
+ "dataset": 7,
+ "note": "0.3.16 第三轮：private 1472.9/1608.9，与 0.3.15 的 1476/1480 同级，逐帧曲线一致（跃升点 35.7/37.7/65.8/156.1 s）。据此推翻「0.3.16 多占 330-880 MB」：11-14/11-15 两次偏高是启动阶段偶发跃升。逐进程：主 python ~1215 + agent 188 + WPF 108 + adb/conhost ~12。"
+}

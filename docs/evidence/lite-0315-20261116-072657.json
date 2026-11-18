@@ -1,0 +1,85 @@
+{
+ "version": "MaaYuan-Lite-0.3.15",
+ "stamp": "20261116-072657",
+ "root_pid": 7244,
+ "port": 8765,
+ "startup_s": {
+  "window": 1.02,
+  "port": 1.42,
+  "api_state": 1.44,
+  "settings": 1.45,
+  "plan": 1.45,
+  "options_all": 1.45,
+  "meta": 1.47
+ },
+ "csv": "lite-0315-20261116-072657.csv",
+ "idle": {
+  "samples": 15,
+  "procs": 3,
+  "private_avg_mb": 286.2,
+  "private_peak_mb": 292.2,
+  "ws_avg_mb": 230.4,
+  "ws_peak_mb": 236.2,
+  "cpu_avg_pct": 2.3
+ },
+ "wall_s": 941.4,
+ "status": "completed",
+ "summary": {
+  "succeeded": 8,
+  "failed": 0,
+  "skipped": 0
+ },
+ "tasks": [
+  {
+   "name": "🚀 启动游戏",
+   "status": "succeeded",
+   "duration": 94.6
+  },
+  {
+   "name": "💰 领月卡福利",
+   "status": "succeeded",
+   "duration": 33.3
+  },
+  {
+   "name": "🏯 据点日常",
+   "status": "succeeded",
+   "duration": 104.9
+  },
+  {
+   "name": "🔮 观星",
+   "status": "succeeded",
+   "duration": 28.0
+  },
+  {
+   "name": "📜 鸢报四连 - 日常专用",
+   "status": "succeeded",
+   "duration": 392.6
+  },
+  {
+   "name": "💎 修为历练",
+   "status": "succeeded",
+   "duration": 41.6
+  },
+  {
+   "name": "🗡 白鹄扫荡",
+   "status": "succeeded",
+   "duration": 31.3
+  },
+  {
+   "name": "🔶 日常收尾",
+   "status": "succeeded",
+   "duration": 210.1
+  }
+ ],
+ "run": {
+  "samples": 471,
+  "procs": 12,
+  "private_avg_mb": 1479.8,
+  "private_peak_mb": 1642.2,
+  "ws_avg_mb": 794.7,
+  "ws_peak_mb": 917.7,
+  "cpu_avg_pct": 17.0
+ },
+ "dataset": 6,
+ "note": "同日 A/B 的 0.3.15 半边。private 1480.0/1642.2，与 11-13（1476.5）及 0.3.13（1471）一致。收尾 210.1s、进入密探特训页面/密探特训一键领取均 0 次（0.3.16 为 172.8s、各 1/2 次）。鸢报 392.6s 属本轮波动，与内存无关。"
+}
