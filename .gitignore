@@ -489,3 +489,11 @@ DailyRewards.txt
 /assets.next.part/
 /assets.prev/
 /dist/
+
+# WorkBuddy 工作区记忆（个人笔记，不入库）
+.workbuddy/
+
+# 本地学习副本与 WorkBuddy 专用工具，不入库
+README.md.old
+devtools/relink_session.py
+*.zip

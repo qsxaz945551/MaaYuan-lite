@@ -112,6 +112,37 @@ class ScopeTest(unittest.TestCase):
             )
         )
 
+    def test_monthly_card_60_clicks_tab_text(self):
+        """月卡 60 体：上游点 [322,139,68,48] 会在 target 内随机取点，2026-11-17 落在
+        左上角 (330,139) —— 那是页签上边框，「福利」二字在 y 152-180，点击被吃掉，
+        页面停在商城，`月卡福利-切换普通月卡` 读到「推荐礼包」后 stop，60 体漏领。
+
+        覆盖只收紧 target 到文字中心并加 pre_delay，识别（红点模板）保持上游原样。
+        """
+        lite, report = apply_scope(self.interface, self.scope, self.overrides)
+        task = next(t for t in lite["task"] if t["name"] == "💰 领月卡福利")
+        node = task["pipeline_override"]["领月卡60体"]
+        self.assertEqual(node["action"]["param"]["target"], [344, 158, 24, 16])
+        self.assertEqual(node["pre_delay"], 600)
+        self.assertNotIn("recognition", node)
+
+        # 上游资源不能改：base 节点仍点页签大框
+        raw = json.loads(
+            (ROOT / "assets/resource/base/pipeline/daily/subscription.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            raw["领月卡60体"]["action"]["param"]["target"], [322, 139, 68, 48]
+        )
+
+        self.assertTrue(
+            any(
+                item["task"] == "💰 领月卡福利" and "领月卡60体" in item["nodes"]
+                for item in report["pipeline_overrides"]
+            )
+        )
+
     def test_monthly_shop_clicks_tab_body(self):
         """月卡商店 20 体：模板自带红点，随机取点会落到角标上，需固定点标签本体。
 
