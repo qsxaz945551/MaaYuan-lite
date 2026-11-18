@@ -139,6 +139,18 @@ def main() -> int:
     print("复制运行时与资源：")
     copy_tree(ROOT / "runtime_env", target / "runtime_env", "runtime_env")
     copy_tree(ROOT / "assets" / "resource" / "base", target / "assets" / "resource" / "base", "assets/resource/base")
+    # `assets/resource` 不入库（来自上游下载），Lite 自己维护的模板另存一份在
+    # lite/templates，打包时补进去 —— 这样重装仓库后也能恢复，不依赖本地 assets。
+    template_src = ROOT / "lite" / "templates"
+    if template_src.is_dir():
+        image_dst = target / "assets" / "resource" / "base" / "image"
+        image_dst.mkdir(parents=True, exist_ok=True)
+        restored = 0
+        for png in sorted(template_src.glob("*.png")):
+            shutil.copy2(png, image_dst / png.name)
+            restored += 1
+        if restored:
+            print(f"  补入自制模板 {restored} 张（lite/templates）")
     interface_source = ROOT / "assets" / "interface.json"
     if interface_source.is_file():
         shutil.copy2(interface_source, target / "assets" / "interface.json")

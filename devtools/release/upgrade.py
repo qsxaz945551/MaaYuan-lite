@@ -26,8 +26,10 @@ KEEP = [
     "on_error",
     "assets/config",
     "assets/.source.json",
-    # Lite 自己加的模板图（上游没有这张），升级时不能被资源包冲掉。
+    # Lite 自己加的模板图（上游没有这几张），升级时不能被资源包冲掉。
     "assets/resource/base/image/activity_title.png",
+    "assets/resource/base/image/lite_event_icon.png",
+    "assets/resource/base/image/lite_special_training.png",
 ]
 
 # What an upgrade actually replaces.

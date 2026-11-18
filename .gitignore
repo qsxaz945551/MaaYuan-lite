@@ -497,3 +497,6 @@ DailyRewards.txt
 README.md.old
 devtools/relink_session.py
 *.zip
+
+# devtools/release 是项目自己的发布脚本，别被上面通用的 [Rr]elease/ 规则吃掉
+!devtools/release/
